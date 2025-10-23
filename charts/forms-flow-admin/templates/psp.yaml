@@ -1,12 +1,12 @@
-{{- if and (include "common.capabilities.psp.supported" .) .Values.psp.create }}
+{{- if and (include "formsflow.capabilities.psp.supported" .) .Values.psp.create }}
 apiVersion: policy/v1beta1
 kind: PodSecurityPolicy
 metadata:
-  name: {{ include "common.names.fullname" . }}
-  namespace: {{ include "common.names.namespace" . | quote }}
-  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+  name: {{ include "formsflow.names.fullname" . }}
+  namespace: {{ include "formsflow.names.namespace" . | quote }}
+  labels: {{- include "formsflow.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
   {{- if .Values.commonAnnotations }}
-  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  annotations: {{- include "formsflow.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 spec:
   privileged: false

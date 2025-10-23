@@ -1,21 +1,21 @@
-apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
+apiVersion: {{ include "formsflow.capabilities.deployment.apiVersion" . }}
 kind: Deployment
 metadata:
-  name: {{ include "common.names.fullname" . }}
-  namespace: {{ include "common.names.namespace" . | quote }}
-  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+  name: {{ include "formsflow.names.fullname" . }}
+  namespace: {{ include "formsflow.names.namespace" . | quote }}
+  labels: {{- include "formsflow.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
   {{- if .Values.commonAnnotations }}
-  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  annotations: {{- include "formsflow.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
   {{- end }}
 spec:
-  {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list .Values.podLabels .Values.commonLabels ) "context" . ) }}
+  {{- $podLabels := include "formsflow.tplvalues.merge" ( dict "values" ( list .Values.podLabels .Values.commonLabels ) "context" . ) }}
   selector:
-    matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 6 }}
+    matchLabels: {{- include "formsflow.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 6 }}
   replicas: {{ .Values.replicaCount }}
-  strategy: {{- include "common.tplvalues.render" (dict "value" .Values.updateStrategy "context" $ ) | nindent 4 }}
+  strategy: {{- include "formsflow.tplvalues.render" (dict "value" .Values.updateStrategy "context" $ ) | nindent 4 }}
   template:
     metadata:
-      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
+      labels: {{- include "formsflow.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
         app.kubernetes.io/component: forms-flow-data-layer
       annotations:
         checksum/secrets: {{ include (print $.Template.BasePath "/secrets.yaml") . | sha256sum }}
@@ -23,60 +23,60 @@ spec:
         checksum/configuration: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
         {{- end }}
         {{- if .Values.podAnnotations }}
-        {{- include "common.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
+        {{- include "formsflow.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
         {{- end }}
     spec:
       serviceAccountName: {{ include "forms-flow-data-layer.serviceAccountName" . }}
       {{- include "forms-flow-data-layer.imagePullSecrets" . | nindent 6 }}
       automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
       {{- if .Values.hostAliases }}
-      hostAliases: {{- include "common.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      hostAliases: {{- include "formsflow.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
       {{- end }}
       {{- if .Values.affinity }}
-      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      affinity: {{- include "formsflow.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
       {{- else }}
       affinity:
-        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "jenkins-controller" "customLabels" $podLabels "context" $) | nindent 10 }}
-        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "jenkins-controller" "customLabels" $podLabels "context" $) | nindent 10 }}
-        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset) | nindent 10 }}
+        podAffinity: {{- include "formsflow.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "jenkins-controller" "customLabels" $podLabels "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "formsflow.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "jenkins-controller" "customLabels" $podLabels "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "formsflow.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset) | nindent 10 }}
       {{- end }}
       {{- if .Values.nodeSelector }}
-      nodeSelector: {{- include "common.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
+      nodeSelector: {{- include "formsflow.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
       {{- end }}
       {{- if .Values.tolerations }}
-      tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
+      tolerations: {{- include "formsflow.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
       {{- end }}
       {{- if .Values.schedulerName }}
       schedulerName: {{ .Values.schedulerName }}
       {{- end }}
       {{- if .Values.topologySpreadConstraints }}
-      topologySpreadConstraints: {{- include "common.tplvalues.render" (dict "value" .Values.topologySpreadConstraints "context" .) | nindent 8 }}
+      topologySpreadConstraints: {{- include "formsflow.tplvalues.render" (dict "value" .Values.topologySpreadConstraints "context" .) | nindent 8 }}
       {{- end }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName | quote }}
       {{- end }}
       {{- if .Values.podSecurityContext.enabled }}
-      securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.podSecurityContext "context" $) | nindent 8 }}
+      securityContext: {{- include "formsflow.compatibility.renderSecurityContext" (dict "secContext" .Values.podSecurityContext "context" $) | nindent 8 }}
       {{- end }}
       containers:       
         - name: forms-flow-data-layer
           image: {{ include "forms-flow-data-layer.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
           {{- if .Values.containerSecurityContext.enabled }}
-          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          securityContext: {{- include "formsflow.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.diagnosticMode.enabled }}
-          command: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.command "context" $) | nindent 12 }}
+          command: {{- include "formsflow.tplvalues.render" (dict "value" .Values.diagnosticMode.command "context" $) | nindent 12 }}
           {{- else if .Values.command }}
-          command: {{- include "common.tplvalues.render" (dict "value" .Values.command "context" $) | nindent 12 }}
+          command: {{- include "formsflow.tplvalues.render" (dict "value" .Values.command "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.diagnosticMode.enabled }}
-          args: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.args "context" $) | nindent 12 }}
+          args: {{- include "formsflow.tplvalues.render" (dict "value" .Values.diagnosticMode.args "context" $) | nindent 12 }}
           {{- else if .Values.args }}
-          args: {{- include "common.tplvalues.render" (dict "value" .Values.args "context" $) | nindent 12 }}
+          args: {{- include "formsflow.tplvalues.render" (dict "value" .Values.args "context" $) | nindent 12 }}
           {{- end }}
           {{- if .Values.lifecycleHooks }}
-          lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
+          lifecycle: {{- include "formsflow.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
           {{- end }}
           env:
           - name: DEBUG
@@ -215,17 +215,17 @@ spec:
                 key: CAMUNDA_DATABASE_PORT
                 name: "{{ .Values.formsflow.bpm.configmap }}"
           {{- if .Values.extraEnvVars }}
-          {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 8 }}
+          {{- include "formsflow.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 8 }}
           {{- end }}
           {{- if or .Values.extraEnvVarsCM .Values.extraEnvVarsSecret }}
           envFrom:
             {{- if .Values.extraEnvVarsCM }}
             - configMapRef:
-                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsCM "context" $) }}
+                name: {{ include "formsflow.tplvalues.render" (dict "value" .Values.extraEnvVarsCM "context" $) }}
             {{- end }}
             {{- if .Values.extraEnvVarsSecret }}
             - secretRef:
-                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsSecret "context" $) }}
+                name: {{ include "formsflow.tplvalues.render" (dict "value" .Values.extraEnvVarsSecret "context" $) }}
             {{- end }}
           {{- end }}
           ports:
@@ -235,18 +235,18 @@ spec:
           {{- if .Values.resources }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
           {{- else if ne .Values.resourcesPreset "none" }}
-          resources: {{- include "common.resources.preset" (dict "type" .Values.resourcesPreset) | nindent 12 }}
+          resources: {{- include "formsflow.resources.preset" (dict "type" .Values.resourcesPreset) | nindent 12 }}
           {{- end }}
           volumeMounts:
             {{- if .Values.extraVolumeMounts }}
-            {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 12 }}
+            {{- include "formsflow.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 12 }}
             {{- end }}
             {{- if .Values.sidecars }}
-            {{- include "common.tplvalues.render" ( dict "value" .Values.sidecars "context" $) | nindent 8 }}
+            {{- include "formsflow.tplvalues.render" ( dict "value" .Values.sidecars "context" $) | nindent 8 }}
             {{- end }}
         - name: nginx
           {{- if .Values.containerSecurityContext.enabled }}
-          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          securityContext: {{- include "formsflow.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
           {{- end }}
           image: {{ include "forms-flow-data-layer.nginx.image" . }}
           ports:
@@ -264,6 +264,6 @@ spec:
         configMap:
           name: forms-flow-data-layer-nginx-config      
         {{- if .Values.extraVolumes }}
-        {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 8 }}
+        {{- include "formsflow.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 8 }}
         {{- end }}
       restartPolicy: Always

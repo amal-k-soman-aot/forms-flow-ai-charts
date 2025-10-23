@@ -66,7 +66,7 @@ Create the name of the service account to use
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "forms-flow-bpm.imagePullSecrets" -}}
-{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
+{{- include "formsflow.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -76,7 +76,7 @@ Return the forms-flow-bpm configuration configmap
 {{- if .Values.existingConfigmap -}}
     {{- printf "%s" (tpl .Values.existingConfigmap $) -}}
 {{- else -}}
-    {{- printf "%s-configuration" (include "common.names.fullname" .) -}}
+    {{- printf "%s-configuration" (include "formsflow.names.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -93,5 +93,5 @@ Return true if a configmap object should be created
     Return the proper forms-flow-bpm image name
 */}}
 {{- define "forms-flow-bpm.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}

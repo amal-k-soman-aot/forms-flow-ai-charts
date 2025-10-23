@@ -74,7 +74,7 @@ Return true if a configmap object should be created
     Return the proper forms-flow-web image name
 */}}
 {{- define "forms-flow-web.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 
@@ -82,5 +82,5 @@ Return true if a configmap object should be created
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "forms-flow-web.imagePullSecrets" -}}
-{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
+{{- include "formsflow.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}

@@ -95,8 +95,8 @@ https://<HOSTNAME>/admin
 | `image.pullPolicy`                 | Image pull policy                                   | `IfNotPresent`                     |
 | `image.tag`                        | Image tag                                          | `v7.0.0`                    |
 | `image.pullSecrets`                | Array of image pull secrets                         | `forms-flow-ai-auth`               |
-| `nameOverride`                     | String to partially override common.names.fullname | `""`                               |
-| `fullnameOverride`                 | String to fully override common.names.fullname     | `""`                               |
+| `nameOverride`                     | String to partially override formsflow.names.fullname | `""`                               |
+| `fullnameOverride`                 | String to fully override formsflow.names.fullname     | `""`                               |
 | `commonLabels`                     | Labels to add to all deployed objects               | `{}`                               |
 | `commonAnnotations`                | Annotations to add to all deployed objects          | `{}`                               |
 | `nodeSelector`                     | Node labels for pod assignment                      | `{}`                               |

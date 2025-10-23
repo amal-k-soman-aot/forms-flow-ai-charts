@@ -1,0 +1,333 @@
+## ----------------------------------------------------------------------------
+## Replica configuration
+## ----------------------------------------------------------------------------
+## Number of Redis pods to run
+##
+replicaCount: 1
+
+## ----------------------------------------------------------------------------
+## Diagnostic Mode
+## ----------------------------------------------------------------------------
+## When enabled, disables probes and replaces the container command (useful for debugging)
+##
+diagnosticMode:
+  enabled: false
+  ## Override container command (for example: sleep forever for debugging)
+  command:
+    - sleep
+  args:
+    - infinity
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+  ## @param automountServiceAccountToken Mount Service Account token in pod
+  ##
+  automountServiceAccountToken: false
+## ----------------------------------------------------------------------------
+## Container Command & Arguments
+## ----------------------------------------------------------------------------
+## Override default Redis startup command
+## e.g. run a custom script before starting redis-server
+##
+command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]
+args: []
+
+## @param nameOverride String to partially override formsflow.names.fullname template (will maintain the release name)
+##
+nameOverride: ""
+## @param fullnameOverride String to fully override formsflow.names.fullname template
+##
+fullnameOverride: ""
+## @param namespaceOverride String to fully override formsflow.names.namespace
+##
+namespaceOverride: ""
+## @param clusterDomain Kubernetes Cluster Domain
+##
+## ----------------------------------------------------------------------------
+## Lifecycle Hooks
+## ----------------------------------------------------------------------------
+## Define actions before or after container start
+## Example:
+## lifecycleHooks:
+##   postStart:
+##     exec:
+##       command: ["/bin/sh", "-c", "echo Redis started"]
+##
+lifecycleHooks: {}
+
+## ----------------------------------------------------------------------------
+## Image Configuration
+## ----------------------------------------------------------------------------
+image:
+  registry: docker.io
+  repository: redis
+  tag: 7.4.1
+  pullPolicy: IfNotPresent
+  ## Optionally specify imagePullSecrets if private registry
+  ## Example:
+  ## pullSecrets:
+  ##   - my-dockerhub-secret
+  pullSecrets: []
+
+## ----------------------------------------------------------------------------
+## Pod Labels and Annotations
+## ----------------------------------------------------------------------------
+podLabels: {}
+commonLabels: {}
+commonAnnotations: {}
+
+## ----------------------------------------------------------------------------
+## Environment Variables
+## ----------------------------------------------------------------------------
+## Inject additional environment variables
+## Example:
+## extraEnvVars:
+##   - name: REDIS_LOG_LEVEL
+##     value: "debug"
+##
+extraEnvVars: {}
+
+## Inject environment variables from existing ConfigMaps or Secrets
+## Example:
+## extraEnvVarsCM: my-configmap
+## extraEnvVarsSecret: my-secret
+##
+extraEnvVarsCM: {}
+extraEnvVarsSecret: {}
+
+## ----------------------------------------------------------------------------
+## Container Ports
+## ----------------------------------------------------------------------------
+## Define ports exposed by Redis
+##
+containerPorts:
+  client: 6379
+  gossip: 16379
+
+## ----------------------------------------------------------------------------
+## Resources
+## ----------------------------------------------------------------------------
+## Configure CPU and memory limits/requests for the container
+## Example:
+## resources:
+##   limits:
+##     cpu: 100m
+##     memory: 256Mi
+##   requests:
+##     cpu: 50m
+##     memory: 128Mi
+##
+resources:
+  limits:
+    cpu: 60m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 256Mi
+
+## Preset resources (optional, if you have predefined sets)
+resourcesPreset: {}
+
+## ----------------------------------------------------------------------------
+## Liveness and Readiness Probes
+## ----------------------------------------------------------------------------
+## Used by Kubernetes to check Redis health
+##
+livenessProbe:
+  enabled: true
+  failureThreshold: 5
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  successThreshold: 1
+  timeoutSeconds: 5
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 3
+  timeoutSeconds: 5
+
+## Optionally define custom probes (overrides defaults)
+## Example:
+## customLivenessProbe:
+##   exec:
+##     command: ["redis-cli", "ping"]
+##
+customLivenessProbe: {}
+customReadinessProbe: {}
+
+## ----------------------------------------------------------------------------
+## Persistence Configuration
+## ----------------------------------------------------------------------------
+## Enable persistent storage for Redis data
+##
+persistence:
+  enabled: true
+  ## Optional subPath (e.g., if sharing a volume)
+  subPath: ""
+  ## Define storage class
+  ## Example: gp2 on AWS, standard on GKE
+  storageClass: "gp2"
+  annotations: {}
+  labels: {}
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi
+  ## Optional PV selector (matchLabels/matchExpressions)
+  selector: {}
+
+## ----------------------------------------------------------------------------
+## Pod Security Context
+## ----------------------------------------------------------------------------
+## Defines security settings for the entire Pod
+##
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+  fsGroup: 1001
+
+## ----------------------------------------------------------------------------
+## Container Security Context
+## ----------------------------------------------------------------------------
+## Defines security settings for the Redis container
+##
+containerSecurityContext:
+  enabled: false
+  seLinuxOptions: {}
+  runAsUser: 1001
+  runAsGroup: 1001
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## ----------------------------------------------------------------------------
+## Extra Volumes and VolumeMounts
+## ----------------------------------------------------------------------------
+## Attach additional volumes to the Redis pod
+## Example:
+## extraVolumes:
+##   - name: custom-config
+##     configMap:
+##       name: my-configmap
+##
+## extraVolumeMounts:
+##   - name: custom-config
+##     mountPath: /opt/config
+##
+extraVolumes: []
+extraVolumeMounts: []
+
+## ----------------------------------------------------------------------------
+## Sidecar Containers
+## ----------------------------------------------------------------------------
+## Add additional containers to Redis pods
+## Example:
+## sidecars:
+##   - name: metrics-sidecar
+##     image: busybox
+##     command: ["sh", "-c", "while true; do echo metrics; sleep 10; done"]
+##
+sidecars: []
+## forms-flow-redis Autoscaling configuration
+## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/
+## @param autoscaling.enabled Enable autoscaling for forms-flow-forms
+## @param autoscaling.minReplicas Minimum number of forms-flow-forms replicas
+## @param autoscaling.maxReplicas Maximum number of forms-flow-forms replicas
+## @param autoscaling.targetCPU Target CPU utilization percentage
+## @param autoscaling.targetMemory Target Memory utilization percentage
+##
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 11
+  targetCPU: ""
+  targetMemory: ""
+  ## HPA Scaling Behavior
+  ## ref: https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale/#configurable-scaling-behavior
+  ##
+  behavior:
+    ## HPA behavior when scaling up
+    ## @param autoscaling.behavior.scaleUp.stabilizationWindowSeconds The number of seconds for which past recommendations should be considered while scaling up
+    ## @param autoscaling.behavior.scaleUp.selectPolicy The priority of policies that the autoscaler will apply when scaling up
+    ## @param autoscaling.behavior.scaleUp.policies [array] HPA scaling policies when scaling up
+    ## e.g:
+    ## Policy to scale 20% of the pod in 60s
+    ## - type: Percent
+    ##   value: 20
+    ##   periodSeconds: 60
+    ##
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      selectPolicy: Max
+      policies: []
+    ## HPA behavior when scaling down
+    ## @param autoscaling.behavior.scaleDown.stabilizationWindowSeconds The number of seconds for which past recommendations should be considered while scaling down
+    ## @param autoscaling.behavior.scaleDown.selectPolicy The priority of policies that the autoscaler will apply when scaling down
+    ## @param autoscaling.behavior.scaleDown.policies [array] HPA scaling policies when scaling down
+    ## e.g:
+    ## Policy to scale one pod in 300s
+    ## - type: Pods
+    ##   value: 1
+    ##   periodSeconds: 300
+    ##
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      selectPolicy: Max
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+## ----------------------------------------------------------------------------
+## Redis Configuration File
+## ----------------------------------------------------------------------------
+## This is injected as a ConfigMap and mounted at /conf
+##
+redis_conf: |
+  cluster-enabled no
+  cluster-require-full-coverage no
+  cluster-node-timeout 15000
+  cluster-config-file /data/nodes.conf
+  cluster-migration-barrier 1
+  appendonly no
+  protected-mode no
+  maxmemory 1449551462
+
+## ----------------------------------------------------------------------------
+## Service Configuration
+## ----------------------------------------------------------------------------
+## Defines how the Redis service is exposed
+##
+service:
+  type: ClusterIP
+  portNames:
+    redis: "client"
+    redis2: "gossip"
+  ports:
+    redis: 6379
+    redis2: 16379
+  nodePorts:
+    redis: ""
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  clusterIP: ""
+  loadBalancerIP: ""
+  loadBalancerClass: ""
+  loadBalancerSourceRanges: []
+  externalIPs: []
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}
+  extraPorts: []

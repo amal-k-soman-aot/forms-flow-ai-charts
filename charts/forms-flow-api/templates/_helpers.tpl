@@ -74,18 +74,18 @@ Return true if a configmap object should be created
     Return the proper forms-flow-api image name
 */}}
 {{- define "forms-flow-api.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 
 {{/*
 Return the proper forms-flow-api side car nginx image name
 */}}
 {{- define "forms-flow-api.nginx.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.ExtraContainer.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.ExtraContainer.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "forms-flow-api.imagePullSecrets" -}}
-{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
+{{- include "formsflow.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}

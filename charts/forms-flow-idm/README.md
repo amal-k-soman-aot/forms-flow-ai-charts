@@ -305,9 +305,9 @@ As an alternative, you can use of the preset configurations for pod affinity, po
 | Name                     | Description                                                                             | Value           |
 | ------------------------ | --------------------------------------------------------------------------------------- | --------------- |
 | `kubeVersion`            | Force target Kubernetes version (using Helm capabilities if not set)                    | `""`            |
-| `nameOverride`           | String to partially override common.names.fullname                                      | `""`            |
-| `fullnameOverride`       | String to fully override common.names.fullname                                          | `""`            |
-| `namespaceOverride`      | String to fully override common.names.namespace                                         | `""`            |
+| `nameOverride`           | String to partially override formsflow.names.fullname                                      | `""`            |
+| `fullnameOverride`       | String to fully override formsflow.names.fullname                                          | `""`            |
+| `namespaceOverride`      | String to fully override formsflow.names.namespace                                         | `""`            |
 | `commonLabels`           | Labels to add to all deployed objects                                                   | `{}`            |
 | `enableServiceLinks`     | If set to false, disable Kubernetes service links in the pod spec                       | `true`          |
 | `commonAnnotations`      | Annotations to add to all deployed objects                                              | `{}`            |

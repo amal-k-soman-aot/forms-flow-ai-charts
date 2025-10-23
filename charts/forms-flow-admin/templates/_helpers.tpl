@@ -55,7 +55,7 @@ Create the name of the service account to use
 */}}
 {{- define "forms-flow-admin.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create -}}
-    {{ default (include "common.names.fullname" .) .Values.serviceAccount.name }}
+    {{ default (include "formsflow.names.fullname" .) .Values.serviceAccount.name }}
 {{- else -}}
     {{ default "default" .Values.serviceAccount.name }}
 {{- end -}}
@@ -65,7 +65,7 @@ Create the name of the service account to use
 Return the proper Docker Image Registry Secret Names
 */}}
 {{- define "forms-flow-admin.imagePullSecrets" -}}
-{{- include "common.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
+{{- include "formsflow.images.renderPullSecrets" (dict "images" (list .Values.image) "context" $) -}}
 {{- end -}}
 
 {{/*
@@ -75,7 +75,7 @@ Return the forms-flow-admin configuration configmap
 {{- if .Values.existingConfigmap -}}
     {{- printf "%s" (tpl .Values.existingConfigmap $) -}}
 {{- else -}}
-    {{- printf "%s-configuration" (include "common.names.fullname" .) -}}
+    {{- printf "%s-configuration" (include "formsflow.names.fullname" .) -}}
 {{- end -}}
 {{- end -}}
 
@@ -92,11 +92,11 @@ Return true if a configmap object should be created
     Return the proper forms-flow-admin image name
 */}}
 {{- define "forms-flow-admin.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.image "global" .Values.global) }}
 {{- end -}}
 {{/*
 Return the proper forms-flow-admin side car nginx image name
 */}}
 {{- define "forms-flow-admin.nginx.image" -}}
-{{ include "common.images.image" (dict "imageRoot" .Values.ExtraContainer.image "global" .Values.global) }}
+{{ include "formsflow.images.image" (dict "imageRoot" .Values.ExtraContainer.image "global" .Values.global) }}
 {{- end -}}

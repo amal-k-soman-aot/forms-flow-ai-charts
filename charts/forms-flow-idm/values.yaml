@@ -218,7 +218,7 @@ keycloak:
 
 postgresql-ha:
   enabled: true
-  ## @param fullnameOverride String to fully override common.names.fullname template
+  ## @param fullnameOverride String to fully override formsflow.names.fullname template
   ##
   fullnameOverride: "forms-flow-idm-postgresql"
   ## @section PostgreSQL with Repmgr parameters

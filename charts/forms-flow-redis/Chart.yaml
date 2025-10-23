@@ -1,0 +1,11 @@
+apiVersion: v2
+name: forms-flow-redis
+description: Redis(™) is an open source, advanced key-value store. It is often referred to as a data structure server since keys can contain strings, hashes, lists, sets and sorted sets.
+icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
+version: v9.0.0 
+type: application
+appVersion: "9.0.0"
+dependencies:
+- name: formsflow
+  repository: oci://registry-1.docker.io/amalsomanaot
+  version: 1.x.x

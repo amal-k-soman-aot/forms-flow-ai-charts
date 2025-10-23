@@ -61,13 +61,13 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 Return the proper redisExporter image name
 */}}
 {{- define "forms-flow-ai.redisExporter.image" -}}
-{{- include "common.images.image" ( dict "imageRoot" .Values.redisExporter.image "global" .Values.global ) -}}
+{{- include "formsflow.images.image" ( dict "imageRoot" .Values.redisExporter.image "global" .Values.global ) -}}
 {{- end -}}
 {{/*
 Labels for redis-exporter
 */}}
 {{- define "forms-flow-ai.redisExporter.labels" -}}
-{{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) }}
+{{- include "formsflow.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) }}
 app.kubernetes.io/component: redis-exporter
 {{- end -}}
 

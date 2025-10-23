@@ -620,7 +620,7 @@ postgresql-ha:
     nodePorts:
       postgresql: ""
 
-redisExporter:
+forms-flow-redis:
   diagnosticMode:
     ## @param diagnosticMode.enabled Enable diagnostic mode (all probes will be disabled and the command will be overridden)
     ##
@@ -720,17 +720,15 @@ redisExporter:
   extraEnvVarsCM: {}
   extraEnvVars: {}
   extraEnvVarsSecret: {} 
-  redis:
-    configMap:
-      redis_conf: |
-        cluster-enabled no
-        cluster-require-full-coverage no
-        cluster-node-timeout 15000
-        cluster-config-file /data/nodes.conf
-        cluster-migration-barrier 1
-        appendonly no
-        protected-mode no
-        maxmemory 1449551462
+  redis_conf: |
+    cluster-enabled no
+    cluster-require-full-coverage no
+    cluster-node-timeout 15000
+    cluster-config-file /data/nodes.conf
+    cluster-migration-barrier 1
+    appendonly no
+    protected-mode no
+    maxmemory 1449551462
   image:  
     registry: docker.io
     repository: redis
