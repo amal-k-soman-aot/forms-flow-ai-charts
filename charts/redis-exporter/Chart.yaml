@@ -4,7 +4,7 @@ description: Redis for formsflow.ai (service "redis-exporter"), used by the API,
 icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
 version: 8.5.0
 type: application
-appVersion: "7.4.1"
+appVersion: "7.3.1"
 dependencies:
 - name: common
   repository: https://charts.bitnami.com/bitnami
