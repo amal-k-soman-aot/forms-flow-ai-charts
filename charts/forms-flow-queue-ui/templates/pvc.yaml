@@ -1,0 +1,11 @@
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{- $name := include "forms-flow-queue-ui.name" . }}
+# NUI's own data (its saved views).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-queue-ui.labels" (dict "name" $name "component" "queue-ui" "context" $) | nindent 4 }}
+spec: {{- include "forms-flow-queue-ui.pvcSpec" (dict "persistence" .Values.persistence "context" $) | nindent 2 }}
+{{- end }}

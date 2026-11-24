@@ -1,0 +1,13 @@
+apiVersion: v2
+name: redis-exporter
+description: Redis for formsflow.ai (service "redis-exporter"), used by the API, documents API, data layer, analytics, offline worker, process gateway and BPM.
+icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
+version: 8.5.0
+type: application
+appVersion: "7.4.1"
+dependencies:
+- name: common
+  repository: https://charts.bitnami.com/bitnami
+  tags:
+  - bitnami-common
+  version: 2.27.0

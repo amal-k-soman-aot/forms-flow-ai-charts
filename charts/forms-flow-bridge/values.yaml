@@ -1,0 +1,211 @@
+## forms-flow-bridge: receives offline form submissions from devices
+## (through forms-flow-edge) and puts them on the queue.
+##
+## The queue and store addresses, the passwords and Keycloak's addresses are
+## in chart forms-flow-ai, whose ConfigMap and Secret this chart reads.
+## Install forms-flow-ai, forms-flow-queue and forms-flow-objectstore first.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+## The objects' name (default: the chart name). forms-flow-edge's
+## bridge.host must match it.
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+image:
+  registry: docker.io
+  repository: formsflow/forms-flow-bridge-ee
+  tag: v7.3.1
+  pullPolicy: IfNotPresent
+  ## the -ee images are private
+  pullSecrets:
+    - forms-flow-ai-auth
+
+containerPorts:
+  http: 5010
+  grpc: 50051
+
+## The pod waits until these init Jobs are gone (Helm removes each one once it
+## succeeds; a failed Job stays and the pod keeps waiting). kubectl wait, with
+## the chart's own ServiceAccount. Empty: no waiting. Keep the image within one
+## minor version of the cluster.
+waitForInitJobs:
+  jobs:
+    - forms-flow-queue-init
+    - forms-flow-objectstore-init
+  timeout: 900s
+  image:
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: v1.36.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 64Mi}
+
+## @section Deployment parameters (as forms-flow-api)
+
+## @param replicaCount Number of forms-flow-bridge replicas
+replicaCount: 1
+## @param updateStrategy.type Deployment strategy type
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+## @param podLabels Extra labels for forms-flow-bridge pods
+podLabels: {}
+## @param podAnnotations Annotations for forms-flow-bridge pods
+podAnnotations: {}
+## @param hostAliases Pods host aliases
+hostAliases: []
+## @param affinity Affinity for pods assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type (soft or hard)
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param nodeSelector Node labels for pods assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pods assignment
+tolerations: []
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+## @param priorityClassName Pods' priority class name
+priorityClassName: ""
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+terminationGracePeriodSeconds: ""
+
+## @param serviceAccount.create Create a ServiceAccount for forms-flow-bridge
+## @param serviceAccount.name The ServiceAccount's name (empty: the chart's fullname)
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
+## true: the init containers wait for the init Jobs with kubectl (waitForInitJobs).
+automountServiceAccountToken: true
+
+## @param podSecurityContext.enabled Enable pods' Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  fsGroup: 1001
+## @param containerSecurityContext.enabled Enable containers' Security Context
+containerSecurityContext:
+  enabled: false
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the forms-flow-bridge container
+lifecycleHooks: {}
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pods
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the forms-flow-bridge container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+## @param startupProbe.enabled Enable startupProbe on forms-flow-bridge containers
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param livenessProbe.enabled Enable livenessProbe on forms-flow-bridge containers
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param readinessProbe.enabled Enable readinessProbe on forms-flow-bridge containers
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param customStartupProbe Custom startupProbe that overrides the default one
+customStartupProbe: {}
+## @param customLivenessProbe Custom livenessProbe that overrides the default one
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readinessProbe that overrides the default one
+customReadinessProbe: {}
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources forms-flow-bridge container requests and limits
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {memory: 1Gi}
+
+## @section Service parameters (as forms-flow-api)
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5010
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: 50051
+      targetPort: grpc
+      protocol: TCP
+      appProtocol: kubernetes.io/h2c
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: ""
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}

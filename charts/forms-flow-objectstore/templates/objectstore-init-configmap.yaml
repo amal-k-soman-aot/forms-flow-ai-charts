@@ -1,0 +1,21 @@
+{{- if .Values.init.enabled }}
+# Retention for the forms-flow-objectstore-init Job (objectstore-init-job.yaml).
+# A hook like the Job, so it exists before the Job reads it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.init.name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-objectstore.labels" (dict "name" .Values.init.name "component" "objectstore-init" "context" $) | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  # large/ (big answers) is removed after KEEP_DAYS days: must be more than
+  # forms-flow-queue.maxWaitDays plus maxHours in days (forms-flow-ai), checked
+  # by setup.sh.
+  KEEP_DAYS: {{ .Values.init.keepDays | quote }}
+  # pending/ (forms received while the queue was away).
+  KEEP_PENDING_DAYS: {{ .Values.init.keepPendingDays | quote }}
+{{- end }}

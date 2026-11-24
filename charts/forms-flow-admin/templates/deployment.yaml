@@ -173,10 +173,16 @@ spec:
               secretKeyRef:
                 key: INSIGHT_API_KEY
                 name: "{{ .Values.formsflow.secret }}"
+          # Process engine calls go through forms-flow-process-gateway.
           - name: BPM_API_URL
             valueFrom:
               configMapKeyRef:
-                key: BPM_API_SERVICE_URL
+                key: PROCESS_GATEWAY_SERVICE_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: BPM_API_PREFIX
+            valueFrom:
+              configMapKeyRef:
+                key: BPM_API_URL_PREFIX
                 name: "{{ .Values.formsflow.configmap }}"
           - name: KEYCLOAK_ADMIN_CLIENT
             valueFrom:

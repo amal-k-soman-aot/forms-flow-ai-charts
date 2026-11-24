@@ -1,0 +1,27 @@
+{{- if .Values.init.enabled }}
+{{- $s := .Values.init.streams }}
+# Stream settings for the forms-flow-queue-init Job (queue-init-job.yaml).
+# A hook like the Job, so it exists before the Job reads it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.init.name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-queue.labels" (dict "name" .Values.init.name "component" "queue-init" "context" $) | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation
+data:
+  NATS_USER: "offline-setup"
+  # 3 in production (one NATS pod per zone); 2 gives no protection.
+  OFFLINE_NATS_REPLICAS: {{ $s.replicas | quote }}
+  # When full, new forms are answered "busy" and stay on the device.
+  OFFLINE_NATS_MAX_STREAM_MB: {{ $s.maxStreamMb | quote }}
+  OFFLINE_STATUS_MAX_DAYS: {{ $s.statusMaxDays | quote }}
+  # The viewer's trace of each form: kept this many days, at most this size.
+  OFFLINE_TRACE_MAX_DAYS: {{ $s.traceMaxDays | quote }}
+  OFFLINE_TRACE_MAX_MB: {{ $s.traceMaxMb | quote }}
+  # The queue drops a form sent twice within this many minutes (same message id).
+  OFFLINE_NATS_DUPLICATE_WINDOW_MINUTES: {{ $s.duplicateWindowMinutes | quote }}
+{{- end }}

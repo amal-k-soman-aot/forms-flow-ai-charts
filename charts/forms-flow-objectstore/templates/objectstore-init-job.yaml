@@ -1,0 +1,166 @@
+{{- if .Values.init.enabled }}
+{{- $j := .Values.init }}
+{{- $store := include "common.names.fullname" . }}
+{{- $image := $j.image | default .Values.image }}
+# forms-flow-objectstore-init: creates the bucket, its clean-up rules and the
+# bridge and worker users (/setup.sh in the objectstore image), then stops.
+# A Helm hook: it runs again after every install and upgrade of this chart,
+# and Helm removes it once it succeeds
+# (safe to run again), so changed store secrets always reach the store.
+# Settings: objectstore-init-configmap.yaml.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $j.name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  {{- /* Its own app.kubernetes.io/name, so the Service never selects its pod. */}}
+  {{- $labels := include "common.tplvalues.merge" ( dict "values" ( list (dict "app.kubernetes.io/name" $j.name) .Values.commonLabels ) "context" . ) }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: objectstore-init
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    # Removed once it succeeds; a failed Job stays for its logs.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    {{- if .Values.commonAnnotations }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+    {{- end }}
+spec:
+  backoffLimit: {{ $j.backoffLimit }}
+  {{- if $j.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ $j.activeDeadlineSeconds }}
+  {{- end }}
+  {{- if $j.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ $j.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list (dict "app.kubernetes.io/name" $j.name) $j.podLabels .Values.commonLabels ) "context" . ) }}
+      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
+        app.kubernetes.io/component: objectstore-init
+      annotations:
+        checksum/configuration: {{ include (print $.Template.BasePath "/objectstore-init-configmap.yaml") . | sha256sum }}
+        {{- if $j.podAnnotations }}
+        {{- include "common.tplvalues.render" (dict "value" $j.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "forms-flow-objectstore.serviceAccountName" . }}
+      {{- include "forms-flow-objectstore.pullSecrets" (dict "images" (list .Values.image $image .Values.busybox.image) "context" $) | nindent 6 }}
+      automountServiceAccountToken: {{ $j.automountServiceAccountToken }}
+      {{- if $j.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $j.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.nodeSelector }}
+      nodeSelector: {{- include "common.tplvalues.render" (dict "value" $j.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.tolerations }}
+      tolerations: {{- include "common.tplvalues.render" (dict "value" $j.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.priorityClassName }}
+      priorityClassName: {{ $j.priorityClassName | quote }}
+      {{- end }}
+      {{- if $j.podSecurityContext.enabled }}
+      securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.podSecurityContext "context" $) | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Waits until the store answers.
+        - name: wait-for-objectstore
+          image: {{ include "forms-flow-objectstore.images.image" (dict "image" .Values.busybox.image "context" $) }}
+          imagePullPolicy: {{ .Values.busybox.image.pullPolicy | quote }}
+          {{- if $j.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              until wget -q -O /dev/null http://{{ $store }}:{{ .Values.containerPorts.api }}/minio/health/live;
+              do echo 'waiting for {{ $store }}'; sleep 5; done
+          resources: {{- toYaml .Values.busybox.resources | nindent 12 }}
+        {{- if $j.initContainers }}
+        {{- include "common.tplvalues.render" (dict "value" $j.initContainers "context" $) | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: {{ $j.name }}
+          # The objectstore image (it has /setup.sh and mc); init.image to use another.
+          image: {{ include "forms-flow-objectstore.images.image" (dict "image" $image "context" $) }}
+          imagePullPolicy: {{ $image.pullPolicy | quote }}
+          {{- if $j.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if $j.command }}
+          command: {{- include "common.tplvalues.render" (dict "value" $j.command "context" $) | nindent 12 }}
+          {{- else }}
+          command: ["/bin/sh", "/setup.sh"]
+          {{- end }}
+          {{- if $j.args }}
+          args: {{- include "common.tplvalues.render" (dict "value" $j.args "context" $) | nindent 12 }}
+          {{- end }}
+          env:
+          # setup.sh's own default address is not this Service's name.
+          - name: STORE_URL
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_STORE_ENDPOINT_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: BUCKET
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_STORE_BUCKET
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: MAX_WAIT_DAYS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_QUEUE_MAX_WAIT_DAYS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: MAX_HOURS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_QUEUE_MAX_HOURS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: ROOT_USER
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_STORE_ROOT_USER
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_STORE_ROOT_PASSWORD
+                name: "{{ .Values.formsflow.secret }}"
+          - name: BRIDGE_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_STORE_BRIDGE_SECRET
+                name: "{{ .Values.formsflow.secret }}"
+          - name: WORKER_SECRET
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_STORE_WORKER_SECRET
+                name: "{{ .Values.formsflow.secret }}"
+          {{- if $j.extraEnvVars }}
+          {{- include "common.tplvalues.render" (dict "value" $j.extraEnvVars "context" $) | nindent 10 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ $j.name }}
+            {{- if $j.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "common.tplvalues.render" (dict "value" $j.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if $j.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "common.tplvalues.render" (dict "value" $j.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- if $j.resources }}
+          resources: {{- toYaml $j.resources | nindent 12 }}
+          {{- else if ne $j.resourcesPreset "none" }}
+          resources: {{- include "common.resources.preset" (dict "type" $j.resourcesPreset) | nindent 12 }}
+          {{- end }}
+          {{- if $j.extraVolumeMounts }}
+          volumeMounts: {{- include "common.tplvalues.render" (dict "value" $j.extraVolumeMounts "context" $) | nindent 12 }}
+          {{- end }}
+      {{- if $j.extraVolumes }}
+      volumes: {{- include "common.tplvalues.render" (dict "value" $j.extraVolumes "context" $) | nindent 8 }}
+      {{- end }}
+{{- end }}

@@ -1,0 +1,174 @@
+# forms-flow-objectstore: MinIO (forms-flow-objectstore image). One private
+# bucket for answers too large for a queue message (large/) and for forms
+# received while the queue is away (pending/).
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "common.names.fullname" . }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: objectstore
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list .Values.podLabels .Values.commonLabels ) "context" . ) }}
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  strategy: {{- include "common.tplvalues.render" (dict "value" .Values.updateStrategy "context" $ ) | nindent 4 }}
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
+        app.kubernetes.io/component: objectstore
+      annotations:
+        checksum/configuration: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if .Values.podAnnotations }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "forms-flow-objectstore.serviceAccountName" . }}
+      {{- include "forms-flow-objectstore.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- include "common.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "objectstore" "customLabels" $podLabels "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "objectstore" "customLabels" $podLabels "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- include "common.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.schedulerName }}
+      schedulerName: {{ .Values.schedulerName }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "common.tplvalues.render" (dict "value" .Values.topologySpreadConstraints "context" .) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.podSecurityContext.enabled }}
+      securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.podSecurityContext "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.initContainers }}
+      initContainers: {{- include "common.tplvalues.render" (dict "value" .Values.initContainers "context" $) | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: forms-flow-objectstore
+          image: {{ include "forms-flow-objectstore.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          # Refuses to start without its password instead of using a default one.
+          {{- if .Values.diagnosticMode.enabled }}
+          command: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.command "context" $) | nindent 12 }}
+          {{- else if .Values.command }}
+          command: {{- include "common.tplvalues.render" (dict "value" .Values.command "context" $) | nindent 12 }}
+          {{- else }}
+          command: ["/bin/sh", "-c"]
+          {{- end }}
+          {{- if .Values.diagnosticMode.enabled }}
+          args: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.args "context" $) | nindent 12 }}
+          {{- else if .Values.args }}
+          args: {{- include "common.tplvalues.render" (dict "value" .Values.args "context" $) | nindent 12 }}
+          {{- else }}
+          args:
+            - >-
+              test -n "$MINIO_ROOT_PASSWORD" || { echo 'Set forms-flow-objectstore.rootPassword (forms-flow-ai)'; exit 1; };
+              exec minio server /data --console-address :{{ .Values.containerPorts.console }}
+          {{- end }}
+          {{- if .Values.lifecycleHooks }}
+          lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
+          {{- end }}
+          env:
+          - name: MINIO_ROOT_USER
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_STORE_ROOT_USER
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: MINIO_ROOT_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_STORE_ROOT_PASSWORD
+                name: "{{ .Values.formsflow.secret }}"
+          {{- if .Values.extraEnvVars }}
+          {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 10 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "common.names.fullname" . }}
+            {{- if .Values.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if .Values.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          ports:
+          - name: api
+            containerPort: {{ .Values.containerPorts.api }}
+            protocol: TCP
+          - name: console
+            containerPort: {{ .Values.containerPorts.console }}
+            protocol: TCP
+          {{- if not .Values.diagnosticMode.enabled }}
+          {{- if .Values.customStartupProbe }}
+          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.customLivenessProbe }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.livenessProbe.enabled }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.livenessProbe "enabled") "context" $) | nindent 12 }}
+            httpGet:
+              path: /minio/health/live
+              port: api
+          {{- end }}
+          {{- if .Values.customReadinessProbe }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.readinessProbe.enabled }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.readinessProbe "enabled") "context" $) | nindent 12 }}
+            httpGet:
+              path: /minio/health/ready
+              port: api
+          {{- end }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          {{- else if ne .Values.resourcesPreset "none" }}
+          resources: {{- include "common.resources.preset" (dict "type" .Values.resourcesPreset) | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - name: data
+            mountPath: /data
+          {{- if .Values.extraVolumeMounts }}
+          {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 10 }}
+          {{- end }}
+        {{- if .Values.sidecars }}
+        {{- include "common.tplvalues.render" ( dict "value" .Values.sidecars "context" $) | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.existingClaim | default (include "common.names.fullname" .) }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      {{- if .Values.extraVolumes }}
+      {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 6 }}
+      {{- end }}
+      restartPolicy: Always

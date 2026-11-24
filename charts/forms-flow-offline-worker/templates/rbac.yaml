@@ -1,0 +1,30 @@
+{{- if .Values.waitForInitJobs.jobs }}
+{{- $name := include "forms-flow-offline-worker.name" . }}
+# Lets the pod wait (kubectl wait) for the init Jobs before it starts, with
+# the chart's ServiceAccount (serviceaccount.yaml).
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
+kind: Role
+metadata:
+  name: {{ $name }}-wait-for-init-jobs
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-offline-worker.labels" (dict "name" $name "component" "offline-worker" "context" $) | nindent 4 }}
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: {{ include "common.capabilities.rbac.apiVersion" . }}
+kind: RoleBinding
+metadata:
+  name: {{ $name }}-wait-for-init-jobs
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-offline-worker.labels" (dict "name" $name "component" "offline-worker" "context" $) | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "forms-flow-offline-worker.serviceAccountName" . }}
+    namespace: {{ include "common.names.namespace" . | quote }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}-wait-for-init-jobs
+{{- end }}

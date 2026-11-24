@@ -51,26 +51,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 
-{{/* Fullname suffixed with redis-exporter */}}
-{{- define "forms-flow-ai.redisExporter.fullname" -}}
-{{- printf "redis-exporter"
- -}}
-{{- end -}}
-
-{{/*
-Return the proper redisExporter image name
-*/}}
-{{- define "forms-flow-ai.redisExporter.image" -}}
-{{- include "common.images.image" ( dict "imageRoot" .Values.redisExporter.image "global" .Values.global ) -}}
-{{- end -}}
-{{/*
-Labels for redis-exporter
-*/}}
-{{- define "forms-flow-ai.redisExporter.labels" -}}
-{{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) }}
-app.kubernetes.io/component: redis-exporter
-{{- end -}}
-
 {{- define "imagePullSecret" }}
 {{- printf "{\"auths\": {\"%s\": {\"auth\": \"%s\"}}}" .Values.imageCredentials.registry (printf "%s:%s" .Values.imageCredentials.username .Values.imageCredentials.password | b64enc) | b64enc }}
 {{- end }}

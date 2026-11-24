@@ -1,0 +1,13 @@
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+{{- $name := include "forms-flow-objectstore.name" . }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-objectstore.labels" (dict "name" $name "component" "objectstore" "context" $) | nindent 4 }}
+  annotations:
+    # Keep the stored answers when the release is removed.
+    helm.sh/resource-policy: keep
+spec: {{- include "forms-flow-objectstore.pvcSpec" (dict "persistence" .Values.persistence "context" $) | nindent 2 }}
+{{- end }}

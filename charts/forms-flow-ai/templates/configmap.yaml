@@ -14,6 +14,11 @@ data:
     DATABASE_SERVICE_NAME: {{ ternary (tpl .Values.formsflowdb.postgresql.fullnameOverride .) "<DEFINE_ME>" .Values.formsflowdb.postgresql.enabled | quote }}
     BPM_API_URL: https://{{ tpl (index .Values "forms-flow-web" "ingress" "hostname") . }}/camunda
     BPM_API_SERVICE_URL: http://{{ tpl (index .Values "forms-flow-bpm" "service" "name") . }}:{{ tpl (index .Values "forms-flow-bpm" "service" "port") . }}/camunda
+    # forms-flow-process-gateway: the API, admin, web app and offline worker call
+    # the process engine through it (BPM_API_URL stays the Camunda address).
+    PROCESS_GATEWAY_URL: https://{{ tpl (index .Values "forms-flow-web" "ingress" "hostname") . }}{{ index .Values "forms-flow-process-gateway" "path" }}
+    PROCESS_GATEWAY_SERVICE_URL: http://{{ tpl (index .Values "forms-flow-process-gateway" "service" "name") . }}:{{ tpl (index .Values "forms-flow-process-gateway" "service" "port") . }}
+    BPM_API_URL_PREFIX: {{ index .Values "forms-flow-process-gateway" "apiPrefix" | quote }}
     KEYCLOAK_JWT_OIDC_ALGORITHMS: "RS256"
     KEYCLOAK_JWT_OIDC_CACHING_ENABLED: "True"
     KEYCLOAK_JWT_OIDC_JWKS_CACHE_TIMEOUT: "300"
@@ -53,8 +58,7 @@ data:
     CHROME_DRIVER_PATH: "/usr/local/bin/chromedriver"
     CHROME_DRIVER_TIMEOUT: "{{ .Values.ChromeDriverTimeOut }}"
     ENABLE_CHATBOT: "{{ .Values.EnableChatBot }}"
-    CHATBOT_URL: https://{{ tpl (index .Values "forms-flow-web" "ingress" "hostname") . }}/analysis/conversations
-    CHATBOT_SERVICE_URL: http://{{ tpl (index .Values "forms-flow-data-analysis" "service" "name") . }}:{{ tpl (index .Values "forms-flow-data-analysis" "service" "port") . }}/conversations
+    CHATBOT_URL: https://{{ tpl (index .Values "forms-flow-web" "ingress" "hostname") . }}/webapi/conversations
     ENABLE_LOW_CODE_DESIGNER: "false"
     ELASTIC_SERVER: "{{ .Values.elastic_server }}"
     REDIS_URL: "{{ .Values.redis_url }}"
@@ -73,3 +77,40 @@ data:
     AI_FORM_GENERATION_LIMIT_TRIAL: "{{ .Values.AiFormGenerationLimitTrial }}"
     AI_FORM_GENERATION_LIMIT_PAID: "{{ .Values.AiFormGenerationLimitPaid }}"
     AI_BUILDER_QUOTA_TIMEZONE: "{{ .Values.AiBuilderQuotaTimezone }}"
+    # Offline forms: settings read by more than one component, from values
+    # forms-flow-web.offline, forms-flow-queue, forms-flow-objectstore,
+    # forms-flow-bridge, forms-flow-edge and forms-flow-offline-worker.
+    {{- $web := index .Values "forms-flow-web" "offline" }}
+    {{- $queue := index .Values "forms-flow-queue" }}
+    {{- $store := index .Values "forms-flow-objectstore" }}
+    {{- $bridge := index .Values "forms-flow-bridge" }}
+    {{- $edge := index .Values "forms-flow-edge" }}
+    {{- $worker := index .Values "forms-flow-offline-worker" }}
+    OFFLINE_ENABLED: "{{ $web.enabled }}"
+    OFFLINE_AUTO_SYNC_ENABLED: "{{ $web.autoSyncEnabled }}"
+    OFFLINE_BUNDLES_ENABLED: "{{ $web.bundlesEnabled }}"
+    OFFLINE_MAX_HOURS: "{{ $web.maxHours }}"
+    OFFLINE_EDGE_URL: {{ (tpl ($edge.url | default (printf "https://%s%s" (index .Values "forms-flow-web" "ingress" "hostname") $edge.path)) .) | quote }}
+    OFFLINE_NETWORK_GOOD_MS: "{{ $web.network.goodMs }}"
+    OFFLINE_NETWORK_SLOW_MS: "{{ $web.network.slowMs }}"
+    OFFLINE_NETWORK_UNSTABLE_FAILURES: "{{ $web.network.unstableFailures }}"
+    OFFLINE_NETWORK_PROBE_TIMEOUT_MS: "{{ $web.network.probeTimeoutMs }}"
+    OFFLINE_CONFIRMED_KEPT_HOURS: "{{ $web.confirmedKeptHours }}"
+    OFFLINE_METADATA_BATCH_MAX_BYTES: "{{ $web.metadataBatchMaxBytes }}"
+    OFFLINE_METADATA_BATCH_MAX_COUNT: "{{ $web.metadataBatchMaxCount }}"
+    OFFLINE_DATA_BATCH_MAX_BYTES: "{{ $web.dataBatchMaxBytes }}"
+    OFFLINE_DATA_BATCH_MAX_COUNT: "{{ $web.dataBatchMaxCount }}"
+    OFFLINE_CUSTOM_SUBMISSION_ENABLED: "{{ $worker.customSubmissionEnabled }}"
+    OFFLINE_WORKER_CLIENT_ID: "{{ $worker.clientid }}"
+    OFFLINE_WORKER_KEY_ID: "{{ $worker.keyId }}"
+    OFFLINE_WORKER_PUBLIC_KEY: {{ $worker.publicKey | quote }}
+    OFFLINE_ON_BEHALF_LEEWAY_S: "{{ $worker.onBehalfLeewayS }}"
+    OFFLINE_REPLAY_REDIS_URL: "{{ $worker.replayRedisUrl }}"
+    OFFLINE_TRACE_ENABLED: "{{ $bridge.traceEnabled }}"
+    OFFLINE_QUEUE_MAX_HOURS: "{{ $queue.maxHours }}"
+    OFFLINE_QUEUE_MAX_WAIT_DAYS: "{{ $queue.maxWaitDays }}"
+    OFFLINE_NATS_URL: nats://{{ tpl $queue.service.name . }}:{{ tpl $queue.service.port . }}
+    OFFLINE_STORE_ENDPOINT_URL: http://{{ tpl $store.service.name . }}:{{ tpl $store.service.port . }}
+    OFFLINE_STORE_BUCKET: "{{ $store.bucket }}"
+    OFFLINE_STORE_REGION: "{{ $store.region }}"
+    OFFLINE_STORE_ROOT_USER: "{{ $store.rootUser }}"

@@ -1,0 +1,284 @@
+## forms-flow-objectstore: MinIO, the object store for offline form
+## submissions, and the forms-flow-objectstore-init Job that creates its
+## bucket, clean-up rules and the bridge and worker users.
+##
+## The passwords (forms-flow-objectstore.rootPassword and each client's
+## storeSecret), the bucket and the store's address are in chart forms-flow-ai, whose ConfigMap and Secret this chart reads.
+## Install or upgrade forms-flow-ai first.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+## @param global.defaultStorageClass Storage class for the volume (empty: the cluster's default)
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  defaultStorageClass: ""
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+## The objects' name (default: the chart name). forms-flow-ai's
+## forms-flow-objectstore.service.name must match it.
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+image:
+  registry: docker.io
+  repository: formsflow/forms-flow-objectstore-ee
+  tag: v7.3.1
+  pullPolicy: IfNotPresent
+  ## the -ee images are private
+  pullSecrets:
+    - forms-flow-ai-auth
+
+# Prometheus counts: "public" while reachable inside the cluster only.
+metricsAuth: public
+
+containerPorts:
+  api: 9000
+  console: 9001
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 10Gi
+
+## forms-flow-objectstore-init: bucket, clean-up rules, bridge and worker
+## users (a Helm hook Job, after every install and upgrade of this chart).
+## Runs /setup.sh from the image above unless init.image is set.
+init:
+  enabled: true
+  name: forms-flow-objectstore-init
+  ## @param init.image Another image with /setup.sh and mc (empty: the image above)
+  image: {}
+  backoffLimit: 6
+  ## @param init.activeDeadlineSeconds Seconds the Job may run in all (empty: no limit)
+  activeDeadlineSeconds: ""
+  ## @param init.ttlSecondsAfterFinished Seconds a finished Job is kept (empty: until the next run)
+  ttlSecondsAfterFinished: ""
+  # Days large/ is kept: more than forms-flow-ai's forms-flow-queue.maxWaitDays plus maxHours.
+  keepDays: "8"
+  keepPendingDays: "30"
+
+  ## @param init.podLabels Extra labels for the Job's pod
+  podLabels: {}
+  ## @param init.podAnnotations Annotations for the Job's pod
+  podAnnotations: {}
+  ## @param init.affinity Affinity for the Job's pod
+  affinity: {}
+  ## @param init.nodeSelector Node labels for the Job's pod
+  nodeSelector: {}
+  ## @param init.tolerations Tolerations for the Job's pod
+  tolerations: []
+  ## @param init.priorityClassName The Job pod's priority class name
+  priorityClassName: ""
+  ## @param init.automountServiceAccountToken Mount the ServiceAccount token (not needed)
+  automountServiceAccountToken: false
+  ## @param init.podSecurityContext.enabled Enable the Job pod's Security Context
+  podSecurityContext:
+    enabled: false
+    fsGroup: 1000
+  ## @param init.containerSecurityContext.enabled Enable the Job containers' Security Context
+  containerSecurityContext:
+    enabled: false
+    runAsNonRoot: false
+    privileged: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+    seccompProfile:
+      type: "RuntimeDefault"
+  ## @param init.command Override the default command (["/bin/sh", "/setup.sh"])
+  command: []
+  ## @param init.args Args for the command
+  args: []
+  ## @param init.extraEnvVars Extra environment variables (list of name/value)
+  extraEnvVars: []
+  ## @param init.extraEnvVarsCM ConfigMap with extra environment variables
+  extraEnvVarsCM: ""
+  ## @param init.extraEnvVarsSecret Secret with extra environment variables
+  extraEnvVarsSecret: ""
+  ## @param init.extraVolumes Extra volumes for the Job's pod
+  extraVolumes: []
+  ## @param init.extraVolumeMounts Extra volume mounts for the setup container
+  extraVolumeMounts: []
+  ## @param init.initContainers Extra init containers (after the wait for the store)
+  initContainers: []
+  ## @param init.resourcesPreset Resources preset when resources is empty
+  resourcesPreset: "none"
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {memory: 256Mi}
+
+## Waits for the store before the init Job runs.
+busybox:
+  image:
+    registry: docker.io
+    repository: library/busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 10m, memory: 16Mi}
+    limits: {memory: 32Mi}
+
+## @section Deployment parameters (as forms-flow-api)
+
+## @param replicaCount Number of forms-flow-objectstore replicas
+## Keep 1: one ReadWriteOnce volume.
+replicaCount: 1
+## @param updateStrategy.type Deployment strategy type
+## One ReadWriteOnce volume: the old pod must let go of it first.
+updateStrategy:
+  type: Recreate
+## @param podLabels Extra labels for forms-flow-objectstore pods
+podLabels: {}
+## @param podAnnotations Annotations for forms-flow-objectstore pods
+podAnnotations: {}
+## @param hostAliases Pods host aliases
+hostAliases: []
+## @param affinity Affinity for pods assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type (soft or hard)
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param nodeSelector Node labels for pods assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pods assignment
+tolerations: []
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+## @param priorityClassName Pods' priority class name
+priorityClassName: ""
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+terminationGracePeriodSeconds: ""
+
+## @param serviceAccount.create Create a ServiceAccount for forms-flow-objectstore
+## @param serviceAccount.name The ServiceAccount's name (empty: the chart's fullname)
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
+automountServiceAccountToken: false
+
+## @param podSecurityContext.enabled Enable pods' Security Context
+## The image runs as minio (uid/gid 1000); a new volume is owned by root, so it
+## is given to that group or MinIO cannot write /data.
+podSecurityContext:
+  enabled: true
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
+## @param containerSecurityContext.enabled Enable containers' Security Context
+containerSecurityContext:
+  enabled: false
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the forms-flow-objectstore container
+lifecycleHooks: {}
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pods
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the forms-flow-objectstore container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+## @param startupProbe.enabled Enable startupProbe on forms-flow-objectstore containers
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param livenessProbe.enabled Enable livenessProbe on forms-flow-objectstore containers
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 3
+  successThreshold: 1
+## @param readinessProbe.enabled Enable readinessProbe on forms-flow-objectstore containers
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 12
+  successThreshold: 1
+## @param customStartupProbe Custom startupProbe that overrides the default one
+customStartupProbe: {}
+## @param customLivenessProbe Custom livenessProbe that overrides the default one
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readinessProbe that overrides the default one
+customReadinessProbe: {}
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources forms-flow-objectstore container requests and limits
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {memory: 1Gi}
+
+## @section Service parameters (as forms-flow-api)
+service:
+  type: ClusterIP
+  ports:
+    - name: api
+      port: 9000
+      targetPort: api
+      protocol: TCP
+    - name: console
+      port: 9001
+      targetPort: console
+      protocol: TCP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: ""
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}

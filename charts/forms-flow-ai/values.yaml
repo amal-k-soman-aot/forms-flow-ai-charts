@@ -32,6 +32,15 @@ forms-flow-analytics:
   service:
     name: forms-flow-analytics
     port: "5000"
+forms-flow-process-gateway:
+  # The web app calls it at https://<forms-flow-web host><path>; the API,
+  # admin and offline worker at the service below.
+  path: /gatewayapi
+  # Path prefix of the gateway's process API (BPM_API_URL_PREFIX).
+  apiPrefix: /api/v1
+  service:
+    name: forms-flow-process-gateway
+    port: "8000"
 forms-flow-forms:
   admin:
     email: "me@defineme.com"
@@ -55,6 +64,87 @@ forms-flow-web:
   service:
     name: forms-flow-web
     port: "8080"
+  # Offline forms in the web app (OFFLINE_ENABLED and OFFLINE_AUTO_SYNC_ENABLED
+  # are also read by the API and the worker).
+  offline:
+    enabled: false
+    # true if organizations may send forms without a click.
+    autoSyncEnabled: false
+    bundlesEnabled: false
+    # Hours the app may open offline after the last online sign-in.
+    maxHours: "24"
+    # Network check (milliseconds; failed checks out of the last 5).
+    network:
+      goodMs: "300"
+      slowMs: "1500"
+      unstableFailures: "2"
+      probeTimeoutMs: "6000"
+    # Hours a sent form stays listed as confirmed on the device.
+    confirmedKeptHours: "24"
+    # Sent at once: form metadata, and form data (count and bytes).
+    metadataBatchMaxBytes: "262144"
+    metadataBatchMaxCount: "100"
+    dataBatchMaxBytes: "2097152"
+    dataBatchMaxCount: "10"
+
+## Offline forms components. Each section holds the settings of one chart
+## (forms-flow-queue, forms-flow-objectstore, forms-flow-bridge,
+## forms-flow-edge, forms-flow-offline-worker, forms-flow-queue-ui) that other
+## components also need; they are read from this chart's ConfigMap and Secret.
+## Service names must match the charts' fullnameOverride.
+## Generate the passwords and secrets with: openssl rand -hex 24
+forms-flow-queue:
+  service:
+    name: forms-flow-queue
+    port: "4222"
+  # How long a failing form is retried, and how long a form that cannot be
+  # saved yet waits (worker; checked by the object store init).
+  maxHours: "24"
+  maxWaitDays: "6"
+  # Password of the queue's setup user (queue init).
+  setupPassword: ""
+forms-flow-objectstore:
+  service:
+    name: forms-flow-objectstore
+    port: "9000"
+  bucket: formsflow-offline
+  region: us-east-1
+  rootUser: offline-admin
+  rootPassword: ""
+forms-flow-bridge:
+  # Its queue password and its object store secret.
+  natsPassword: ""
+  storeSecret: ""
+  # The viewer's trace of each form (bridge and worker).
+  traceEnabled: true
+forms-flow-edge:
+  # Public address of the edge for the web app. Empty: the web host plus
+  # path (https://<forms-flow-web hostname>/envoy); path must match the
+  # forms-flow-edge chart's ingress.path.
+  url: ""
+  path: /envoy
+forms-flow-offline-worker:
+  # The Keycloak client the worker signs in with (API, gateway, BPM check it).
+  clientid: forms-flow-offline-worker
+  # Change it when replacing the keys.
+  keyId: offline-worker-1
+  # Public half of the worker's signing key (PEM, line breaks as \n), checked
+  # by the API, gateway and BPM. Empty: no "on behalf of" token is accepted.
+  # The private half is the forms-flow-offline-worker chart's signingKey.
+  publicKey: ""
+  # Seconds of clock difference allowed for on-behalf tokens (gateway, BPM).
+  onBehalfLeewayS: "30"
+  # Redis that remembers used on-behalf tokens; needed when the gateway or
+  # BPM runs more than one copy (e.g. redis://redis-exporter:6379/2).
+  replayRedisUrl: ""
+  # true only when a custom submission service accepts the worker's tokens.
+  customSubmissionEnabled: false
+  # Its queue password and its object store secret.
+  natsPassword: ""
+  storeSecret: ""
+forms-flow-queue-ui:
+  # Queue password of the viewer. Optional: empty and it cannot sign in.
+  natsPassword: ""
 
 imageCredentials:
   registry: quay.io
@@ -630,268 +720,3 @@ postgresql-ha:
     ##
     nodePorts:
       postgresql: ""
-
-redisExporter:
-  diagnosticMode:
-    ## @param diagnosticMode.enabled Enable diagnostic mode (all probes will be disabled and the command will be overridden)
-    ##
-    enabled: false
-    ## @param diagnosticMode.command Command to override all containers in the deployment
-    ##
-    command:
-      - sleep
-    ## @param diagnosticMode.args Args to override all containers in the deployment
-    ##
-    args:
-      - infinity
-  ## @param command Override default container command (useful when using custom images)
-  ##
-  command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]
-  ## @param lifecycleHooks for the forms-flow-api container(s) to automate configuration before or after startup
-  ##
-  lifecycleHooks: {}
-  replicaCounts: 1
-  serviceAnnotations: {}
-  serviceLabels: {}
-  service:
-    ## @param redis-exporter.service.type Redis&reg; redis-exporter service type
-    ##
-    type: ClusterIP
-    ## @param redis-exporter.service.portNames.redis Redis&reg; redis-exporter service port name
-    ##
-    portNames:
-      redis: "client"
-      redis2: "gossip"
-    ## @param redis-exporter.service.ports.redis Redis&reg; redis-exporter service port
-    ##
-    ports:
-      redis: 6379
-      redis2: 16379
-    ## @param redis-exporter.service.nodePorts.redis Node port for Redis&reg; redis-exporter
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-nodeport
-    ## NOTE: choose port between <30000-32767>
-    ##
-    nodePorts:
-      redis: ""
-    ## @param redis-exporter.service.externalTrafficPolicy Redis&reg; redis-exporter service external traffic policy
-    ## ref: https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
-    ##
-    externalTrafficPolicy: Cluster
-    ## @param redis-exporter.service.extraPorts Extra ports to expose (normally used with the `sidecar` value)
-    ##
-    extraPorts: []
-    ## @param redis-exporter.service.internalTrafficPolicy Redis&reg; redis-exporter service internal traffic policy (requires Kubernetes v1.22 or greater to be usable)
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service-traffic-policy/
-    ##
-    internalTrafficPolicy: Cluster
-    ## @param redis-exporter.service.clusterIP Redis&reg; redis-exporter service Cluster IP
-    ##
-    clusterIP: ""
-    ## @param redis-exporter.service.loadBalancerIP Redis&reg; redis-exporter service Load Balancer IP
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
-    ##
-    loadBalancerIP: ""
-    ## @param redis-exporter.service.loadBalancerClass redis-exporter service Load Balancer class if service type is `LoadBalancer` (optional, cloud specific)
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#type-loadbalancer
-    ##
-    loadBalancerClass: ""
-    ## @param redis-exporter.service.loadBalancerSourceRanges Redis&reg; redis-exporter service Load Balancer sources
-    ## https://kubernetes.io/docs/tasks/access-application-cluster/configure-cloud-provider-firewall/#restrict-access-for-loadbalancer-service
-    ## e.g.
-    ## loadBalancerSourceRanges:
-    ##   - 10.10.10.0/24
-    ##
-    loadBalancerSourceRanges: []
-    ## @param redis-exporter.service.externalIPs Redis&reg; redis-exporter service External IPs
-    ## https://kubernetes.io/docs/concepts/services-networking/service/#external-ips
-    ## e.g.
-    ## externalIPs:
-    ##   - 10.10.10.1
-    ##   - 201.22.30.1
-    ##
-    externalIPs: []
-    ## @param redis-exporter.service.annotations Additional custom annotations for Redis&reg; redis-exporter service
-    ##
-    annotations: {}
-    ## @param redis-exporter.service.sessionAffinity Session Affinity for Kubernetes service, can be "None" or "ClientIP"
-    ## If "ClientIP", consecutive client requests will be directed to the same Pod
-    ## ref: https://kubernetes.io/docs/concepts/services-networking/service/#virtual-ips-and-service-proxies
-    ##
-    sessionAffinity: None
-    ## @param redis-exporter.service.sessionAffinityConfig Additional settings for the sessionAffinity
-    ## sessionAffinityConfig:
-    ##   clientIP:
-    ##     timeoutSeconds: 300
-    ##
-    sessionAffinityConfig: {}
-  ## @param redis-exporter.podLabels Extra labels for Redis&reg; redis-exporter pods
-  ## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-  ##
-  podLabels: {}
-  extraEnvVarsCM: {}
-  extraEnvVars: {}
-  extraEnvVarsSecret: {} 
-  redis:
-    configMap:
-      redis_conf: |
-        cluster-enabled no
-        cluster-require-full-coverage no
-        cluster-node-timeout 15000
-        cluster-config-file /data/nodes.conf
-        cluster-migration-barrier 1
-        appendonly no
-        protected-mode no
-        maxmemory 1449551462
-  image:  
-    registry: docker.io
-    repository: redis
-    tag: 7.4.1
-    pullPolicy: Always
-    pullSecrets: []
-  livenessProbe:
-    enabled: true
-    failureThreshold: 5
-    initialDelaySeconds: 30
-    periodSeconds: 5
-    successThreshold: 1
-    timeoutSeconds: 5
-  readinessProbe:
-    enabled: true
-    initialDelaySeconds: 10
-    periodSeconds: 3
-    timeoutSeconds: 5
-  
-  ## K8s Security Context for forms-flow-api pods
-  ## Configure Pods Security Context
-  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-  ## @param podSecurityContext.enabled Enabled forms-flow-api pods' Security Context
-  ## @param podSecurityContext.fsGroupChangePolicy Set filesystem group change policy
-  ## @param podSecurityContext.sysctls Set kernel settings using the sysctl interface
-  ## @param podSecurityContext.supplementalGroups Set filesystem extra groups
-  ## @param podSecurityContext.fsGroup Set forms-flow-api pod's Security Context fsGroup
-  ##
-  podSecurityContext:
-    enabled: false
-    fsGroupChangePolicy: Always
-    sysctls: []
-    supplementalGroups: []
-    fsGroup: 1001
-  ## Configure Container Security Context
-  ## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/#set-the-security-context-for-a-pod
-  ## @param containerSecurityContext.enabled Enabled containers' Security Context
-  ## @param containerSecurityContext.seLinuxOptions [object,nullable] Set SELinux options in container
-  ## @param containerSecurityContext.runAsUser Set containers' Security Context runAsUser
-  ## @param containerSecurityContext.runAsGroup Set containers' Security Context runAsGroup
-  ## @param containerSecurityContext.runAsNonRoot Set container's Security Context runAsNonRoot
-  ## @param containerSecurityContext.privileged Set container's Security Context privileged
-  ## @param containerSecurityContext.readOnlyRootFilesystem Set container's Security Context readOnlyRootFilesystem
-  ## @param containerSecurityContext.allowPrivilegeEscalation Set container's Security Context allowPrivilegeEscalation
-  ## @param containerSecurityContext.capabilities.drop List of capabilities to be dropped
-  ## @param containerSecurityContext.seccompProfile.type Set container's Security Context seccomp profile
-  ##
-  containerSecurityContext:
-    enabled: false
-    seLinuxOptions: {}
-    runAsUser: 1001
-    runAsGroup: 1001
-    runAsNonRoot: false
-    privileged: false
-    readOnlyRootFilesystem: false
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: ["ALL"]
-    seccompProfile:
-      type: "RuntimeDefault"
-  ## @param redisExporter.customLivenessProbe Custom livenessProbe that overrides the default one
-  ##
-  customLivenessProbe: {}
-  ## @param redisExporter.customReadinessProbe Custom readinessProbe that overrides the default one
-  ##
-  customReadinessProbe: {}
-  ## @param redisExporter.containerPorts.http redis Exporter HTTP container port
-  ##
-  containerPorts:
-    client: 6379
-    gossip: 16379
-  ## @param redisExporter.extraVolumes Optionally specify extra list of additional volumes for the redis Exporter pod(s)
-  ##
-  extraVolumes: []
-  ## @param redisExporter.extraVolumeMounts Optionally specify extra list of additional volumeMounts for the redis Exporter container(s)
-  ##
-  extraVolumeMounts: []
-  ## @param redisExporter.sidecars Add additional sidecar containers to the redis Exporter pod(s)
-  ## e.g:
-  ## sidecars:
-  ##   - name: your-image-name
-  ##     image: your-image
-  ##     imagePullPolicy: Always
-  ##     ports:
-  ##       - name: portname
-  ##         containerPort: 1234
-  ##
-  sidecars: []
-  ## @param redisExporter.resources Set container requests and limits for different resources like CPU or memory (essential for production workloads)
-  ## Example:
-  ## resources:
-  ##   requests:
-  ##     cpu: 2
-  ##     memory: 512Mi
-  ##   limits:
-  ##     cpu: 3
-  ##     memory: 1024Mi
-  ##
-
-  resources:
-    limits:
-      cpu: 60m
-      memory: 512Mi
-    requests:
-      cpu: 50m
-      memory: 256Mi
-  resourcesPreset: {}
-
-  ## Enable persistence using Persistent Volume Claims
-  ## ref: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
-  ##
-
-  persistence:
-    ## @param persistence.enabled Enable persistence on Redis&reg;
-    ## If enabled, nodes are using Persistent Volume Claims
-    ## If disabled, an emptyDir volume is used. This is not recommended.
-    ## ref: https://github.com/bitnami/charts/tree/main/bitnami/redis-cluster#persistence
-    ##
-    enabled: true
-    ## @param persistence.subPath The subdirectory of the volume to mount to, useful in dev environments and one PV for multiple services
-    ##
-    subPath: ""
-    ## @param persistence.storageClass Storage class of backing PVC
-    ## If defined, storageClassName: <storageClass>
-    ## If set to "-", storageClassName: "", which disables dynamic provisioning
-    ## If undefined (the default) or set to null, no storageClassName spec is
-    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
-    ##   GKE, AWS & OpenStack)
-    ##
-    storageClass: ""
-    ## @param persistence.annotations Persistent Volume Claim annotations
-    ##
-    annotations: {}
-    ## @param persistence.labels Persistent Volume Claim labels
-    ##
-    labels: {}
-    ## @param persistence.accessModes Persistent Volume Access Modes
-    ##
-    accessModes:
-      - ReadWriteOnce
-    ## @param persistence.size Size of data volume
-    ##
-    size: 2Gi
-    ## @param persistence.matchLabels Persistent Volume selectors
-    ## https://kubernetes.io/docs/concepts/storage/persistent-volumes/#selector
-    ##
-    selector: {}
-    ## @param persistence.matchExpressions matchExpressions Persistent Volume selectors
-
-
-
-
-

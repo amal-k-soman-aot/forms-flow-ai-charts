@@ -1,0 +1,245 @@
+## forms-flow-edge: Envoy, the devices' only door for offline form
+## submissions, with an nginx sidecar that serves it under a path of the web
+## host (like forms-flow-api's /webapi).
+##
+## Keycloak's addresses, the web client id and the web app's address (CORS)
+## are read from chart forms-flow-ai's ConfigMap and Secret. The web app's
+## OFFLINE_EDGE_URL there (forms-flow-edge.path) must match ingress.path here.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+image:
+  registry: docker.io
+  repository: formsflow/forms-flow-edge-ee
+  tag: v7.3.1
+  pullPolicy: IfNotPresent
+  ## the -ee images are private
+  pullSecrets:
+    - forms-flow-ai-auth
+
+containerPorts:
+  edge: 8443
+# Envoy's admin port (its /ready is the health check).
+adminPort: 9901
+
+limits:
+  # Raise with the number of devices.
+  maxConnections: "5000"
+  maxRequestBytes: "10485760"
+  maxBridgeRequests: "1000"
+
+# Proxies in front of Envoy trusted for the client address (1 behind the ALB).
+trustedHops: "1"
+
+tls:
+  # false: TLS ends at the load balancer. true: HTTPS in Envoy with your
+  # certificate from Secret certsSecret (mounted at /certs).
+  enabled: false
+  certsSecret: forms-flow-edge-certs
+
+# Only for Keycloak's https keys address with a private CA.
+idpCaFile: ""
+
+## The bridge (chart forms-flow-bridge).
+bridge:
+  host: forms-flow-bridge
+  httpPort: 5010
+  grpcPort: 50051
+
+## @param ingress.hostname The web host (e.g. forms-flow-web-<namespace>.<domain>)
+## @param ingress.pathSuffix Added to the path ("/*" for the AWS ALB controller)
+## @param ingress.annotations e.g. the ALB group, certificate and health check
+ingress:
+  enabled: true
+  # nginx's port (the Service's nginx port).
+  servicePort: 8080
+  ingressClassName: ""
+  hostname: forms-flow-web.local
+  path: /envoy
+  pathType: ImplementationSpecific
+  pathSuffix: ""
+  annotations: {}
+  # true: TLS from a Secret "<hostname>-tls" (not needed when the load balancer ends TLS).
+  tls: false
+
+## nginx sidecar in front of the container (like forms-flow-api's).
+ExtraContainer:
+  image:
+    registry: docker.io
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.27-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits: {memory: 128Mi}
+## @param maxSizePayload nginx client_max_body_size: at least limits.maxRequestBytes.
+maxSizePayload: 10m
+
+## @section Deployment parameters (as forms-flow-api)
+
+## @param replicaCount Number of forms-flow-edge replicas
+replicaCount: 1
+## @param updateStrategy.type Deployment strategy type
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+## @param podLabels Extra labels for forms-flow-edge pods
+podLabels: {}
+## @param podAnnotations Annotations for forms-flow-edge pods
+podAnnotations: {}
+## @param hostAliases Pods host aliases
+hostAliases: []
+## @param affinity Affinity for pods assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type (soft or hard)
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param nodeSelector Node labels for pods assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pods assignment
+tolerations: []
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+## @param priorityClassName Pods' priority class name
+priorityClassName: ""
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+terminationGracePeriodSeconds: ""
+
+## @param serviceAccount.create Create a ServiceAccount for forms-flow-edge
+## @param serviceAccount.name The ServiceAccount's name (empty: the chart's fullname)
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
+automountServiceAccountToken: false
+
+## @param podSecurityContext.enabled Enable pods' Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  fsGroup: 1001
+## @param containerSecurityContext.enabled Enable containers' Security Context
+containerSecurityContext:
+  enabled: false
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the forms-flow-edge container
+lifecycleHooks: {}
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pods
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the forms-flow-edge container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+## @param startupProbe.enabled Enable startupProbe on forms-flow-edge containers
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param livenessProbe.enabled Enable livenessProbe on forms-flow-edge containers
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param readinessProbe.enabled Enable readinessProbe on forms-flow-edge containers
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 12
+  successThreshold: 1
+## @param customStartupProbe Custom startupProbe that overrides the default one
+customStartupProbe: {}
+## @param customLivenessProbe Custom livenessProbe that overrides the default one
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readinessProbe that overrides the default one
+customReadinessProbe: {}
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources forms-flow-edge container requests and limits
+resources:
+  requests: {cpu: 100m, memory: 128Mi}
+  limits: {memory: 512Mi}
+
+## @section Service parameters (as forms-flow-api)
+service:
+  type: ClusterIP
+  ports:
+    # The ingress goes to nginx; inside the cluster Envoy can be reached directly.
+    - name: nginx
+      port: 8080
+      targetPort: nginx
+      protocol: TCP
+    - name: edge
+      port: 8443
+      targetPort: edge
+      protocol: TCP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: ""
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}

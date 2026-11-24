@@ -1,0 +1,13 @@
+apiVersion: v2
+name: forms-flow-objectstore
+description: "The object store for offline form submissions (MinIO): answers too large for a queue message and forms received while the queue is away, with the forms-flow-objectstore-init Job that creates its bucket and users."
+icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
+version: 8.5.0
+type: application
+appVersion: "v7.3.1"
+dependencies:
+- name: common
+  repository: https://charts.bitnami.com/bitnami
+  tags:
+  - bitnami-common
+  version: 2.27.0

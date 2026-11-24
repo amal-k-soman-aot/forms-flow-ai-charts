@@ -109,10 +109,16 @@ spec:
               configMapKeyRef:
                 key: FORMIO_URL
                 name: "{{ .Values.formsflow.configmap }}"
+          # Process engine calls go through forms-flow-process-gateway.
           - name: REACT_APP_BPM_URL
             valueFrom:
               configMapKeyRef:
-                key: BPM_API_URL
+                key: PROCESS_GATEWAY_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_BPM_API_PREFIX
+            valueFrom:
+              configMapKeyRef:
+                key: BPM_API_URL_PREFIX
                 name: "{{ .Values.formsflow.configmap }}"
           - name: REACT_APP_KEYCLOAK_CLIENT
             valueFrom:
@@ -314,6 +320,77 @@ spec:
               configMapKeyRef:
                 key: REACT_APP_URL_PRIVACY_POLICY
                 name: "{{ .Chart.Name }}"          
+          # Offline forms (chart forms-flow-ai, values forms-flow-web.offline and forms-flow-edge).
+          - name: REACT_APP_OFFLINE_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_ENABLED
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_EDGE_URL
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_EDGE_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_AUTO_SYNC_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_AUTO_SYNC_ENABLED
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_BUNDLES_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_BUNDLES_ENABLED
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_MAX_HOURS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_MAX_HOURS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_NETWORK_GOOD_MS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NETWORK_GOOD_MS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_NETWORK_SLOW_MS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NETWORK_SLOW_MS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_NETWORK_UNSTABLE_FAILURES
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NETWORK_UNSTABLE_FAILURES
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_NETWORK_PROBE_TIMEOUT_MS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NETWORK_PROBE_TIMEOUT_MS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_CONFIRMED_KEPT_HOURS
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_CONFIRMED_KEPT_HOURS
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_METADATA_BATCH_MAX_BYTES
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_METADATA_BATCH_MAX_BYTES
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_METADATA_BATCH_MAX_COUNT
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_METADATA_BATCH_MAX_COUNT
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_DATA_BATCH_MAX_BYTES
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_DATA_BATCH_MAX_BYTES
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: REACT_APP_OFFLINE_DATA_BATCH_MAX_COUNT
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_DATA_BATCH_MAX_COUNT
+                name: "{{ .Values.formsflow.configmap }}"
           {{- if .Values.extraEnvVars }}
           {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 8 }}
           {{- end }}

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: forms-flow-bridge
+description: "Receives offline form submissions from devices (HTTP JSON and gRPC, through forms-flow-edge) and puts them on the queue."
+icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
+version: 8.5.0
+type: application
+appVersion: "v7.3.1"
+dependencies:
+- name: common
+  repository: https://charts.bitnami.com/bitnami
+  tags:
+  - bitnami-common
+  version: 2.27.0

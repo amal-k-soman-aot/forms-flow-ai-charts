@@ -1,0 +1,216 @@
+## redis-exporter: the Redis server formsflow.ai uses (service
+## redis-exporter:6379). Before 8.5.0 it was part of chart forms-flow-ai
+## (values section redisExporter).
+##
+## Who uses which database (set in chart forms-flow-ai unless noted):
+##   redis_url                                    redis://redis-exporter:6379/1  (API, documents API, data layer, offline worker)
+##   forms-flow-offline-worker.replayRedisUrl     redis://redis-exporter:6379/2  (gateway, BPM)
+##   forms-flow-analytics externalRedis           redis://redis-exporter:6379/0  (chart forms-flow-analytics)
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+## @param global.defaultStorageClass Storage class for the volume (empty: the cluster's default)
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  defaultStorageClass: ""
+
+## @param nameOverride String to partially override common.names.fullname
+nameOverride: ""
+## @param fullnameOverride The objects' name. Keep "redis-exporter": the other
+## charts' Redis URLs use it.
+fullnameOverride: redis-exporter
+## @param commonLabels Labels to add to all deployed objects
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+commonAnnotations: {}
+
+image:
+  registry: docker.io
+  repository: redis
+  tag: 7.4.1
+  pullPolicy: Always
+  pullSecrets: []
+
+## @param redisConfig redis.conf. Data is not written to disk (appendonly no);
+## Redis keeps a cache, sessions and one-time token marks only.
+redisConfig: |
+  cluster-enabled no
+  cluster-require-full-coverage no
+  cluster-node-timeout 15000
+  cluster-config-file /data/nodes.conf
+  cluster-migration-barrier 1
+  appendonly no
+  protected-mode no
+  maxmemory 1449551462
+
+containerPorts:
+  client: 6379
+  gossip: 16379
+
+## @param replicaCount Number of Redis pods. Keep 1: the pods are independent
+## servers, not a cluster.
+replicaCount: 1
+## @param updateStrategy.type StatefulSet update strategy
+updateStrategy:
+  type: RollingUpdate
+
+## @param command The container command (update-node.sh, then redis-server)
+command: ["/conf/update-node.sh", "redis-server", "/conf/redis.conf"]
+## @param args Args for the command
+args: []
+## @param lifecycleHooks Lifecycle hooks for the Redis container
+lifecycleHooks: {}
+
+diagnosticMode:
+  ## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+
+## @param tolerations Tolerations for pod assignment
+tolerations: []
+## @param nodeSelector Node labels for pod assignment
+nodeSelector: {}
+## @param affinity Affinity for pod assignment (the presets are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param priorityClassName Pod priority
+priorityClassName: ""
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param terminationGracePeriodSeconds Seconds the pod needs to terminate gracefully
+terminationGracePeriodSeconds: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+hostAliases: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the Service Account token in the pod (not needed)
+automountServiceAccountToken: false
+## @param podAnnotations Pod annotations
+podAnnotations: {}
+## @param podLabels Extra labels for the pod
+podLabels: {}
+
+## @param podSecurityContext.enabled Enable the pod's Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+  fsGroup: 999
+## @param containerSecurityContext.enabled Enable the container's Security Context
+containerSecurityContext:
+  enabled: false
+  seLinuxOptions: {}
+  runAsUser: 999
+  runAsGroup: 999
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pod
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the Redis container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 5
+  timeoutSeconds: 5
+  failureThreshold: 30
+  successThreshold: 1
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 5
+  timeoutSeconds: 6
+  failureThreshold: 5
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 3
+  timeoutSeconds: 6
+  failureThreshold: 3
+  successThreshold: 1
+## @param customStartupProbe Custom startup probe (overrides startupProbe)
+customStartupProbe: {}
+## @param customLivenessProbe Custom liveness probe (overrides livenessProbe)
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readiness probe (overrides readinessProbe)
+customReadinessProbe: {}
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources Redis container requests and limits
+resources:
+  limits:
+    cpu: 60m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 256Mi
+
+persistence:
+  ## @param persistence.enabled A volume for /data (otherwise an emptyDir)
+  enabled: true
+  ## @param persistence.subPath Subdirectory of the volume to mount
+  subPath: ""
+  ## @param persistence.storageClass Storage class (empty: the cluster's default)
+  storageClass: ""
+  annotations: {}
+  labels: {}
+  accessModes:
+    - ReadWriteOnce
+  size: 2Gi
+  selector: {}
+
+service:
+  type: ClusterIP
+  ports:
+    - name: client
+      port: 6379
+      targetPort: client
+      protocol: TCP
+    - name: gossip
+      port: 16379
+      targetPort: gossip
+      protocol: TCP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: Cluster
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}

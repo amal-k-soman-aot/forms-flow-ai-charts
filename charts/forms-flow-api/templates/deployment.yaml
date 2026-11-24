@@ -84,10 +84,16 @@ spec:
               secretKeyRef:
                 key: MONGODB_URI
                 name: "{{ .Values.formsflow.secret }}"
+          # Process engine calls go through forms-flow-process-gateway.
           - name: BPM_API_URL
             valueFrom:
               configMapKeyRef:
-                key: BPM_API_SERVICE_URL
+                key: PROCESS_GATEWAY_SERVICE_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: BPM_API_URL_PREFIX
+            valueFrom:
+              configMapKeyRef:
+                key: BPM_API_URL_PREFIX
                 name: "{{ .Values.formsflow.configmap }}"
           - name: BPM_CLIENT_ID
             valueFrom:
@@ -309,6 +315,32 @@ spec:
             valueFrom:
               configMapKeyRef:
                 key: AI_BUILDER_QUOTA_TIMEZONE
+                name: "{{ .Values.formsflow.configmap }}"
+          # Offline forms (chart forms-flow-ai; the worker's on-behalf tokens).
+          - name: OFFLINE_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_ENABLED
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: OFFLINE_AUTO_SYNC_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_AUTO_SYNC_ENABLED
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: OFFLINE_WORKER_PUBLIC_KEY
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_WORKER_PUBLIC_KEY
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: OFFLINE_WORKER_KEY_ID
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_WORKER_KEY_ID
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: OFFLINE_CUSTOM_SUBMISSION_ENABLED
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_CUSTOM_SUBMISSION_ENABLED
                 name: "{{ .Values.formsflow.configmap }}"
           {{- if .Values.extraEnvVars }}
           {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 8 }}

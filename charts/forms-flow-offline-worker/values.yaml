@@ -1,0 +1,179 @@
+## forms-flow-offline-worker: takes offline form submissions from the queue
+## and saves them with the API's code.
+##
+## It gets forms-flow-api's settings (charts forms-flow-ai and forms-flow-api)
+## plus the offline ones shared in forms-flow-ai (flags, client id, key id,
+## queue and store addresses and passwords). Install forms-flow-ai,
+## forms-flow-api, forms-flow-queue and forms-flow-objectstore first.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+image:
+  registry: docker.io
+  repository: formsflow/forms-flow-offline-worker-ee
+  tag: v7.3.1
+  pullPolicy: IfNotPresent
+  ## the -ee images are private
+  pullSecrets:
+    - forms-flow-ai-auth
+
+# Forms saved at once per worker pod.
+concurrency: "4"
+# Forms' metadata (stream OFFLINE_METADATA): saved at once, and retried for.
+metadataConcurrency: "4"
+metadataMaxHours: "24"
+
+## @param clientSecret Secret of the Keycloak client forms-flow-offline-worker.clientid (forms-flow-ai)
+clientSecret: ""
+## @param signingKey RSA private key (PEM, line breaks as \n); its public
+## half is forms-flow-ai's forms-flow-offline-worker.publicKey.
+signingKey: ""
+## Use an existing Secret with OFFLINE_WORKER_CLIENT_SECRET and OFFLINE_WORKER_SIGNING_KEY.
+existingSecret: ""
+
+## forms-flow-api's own ConfigMap and Secret (chart forms-flow-api), for its database.
+api:
+  configmap: forms-flow-api
+  secret: forms-flow-api
+  database:
+    nameKey: FORMSFLOW_API_DB_NAME
+    passwordKey: FORMSFLOW_API_DB_PASSWORD
+    userKey: FORMSFLOW_API_DB_USER
+    hostKey: FORMSFLOW_API_HOSTNAME
+    portKey: FORMSFLOW_API_PORT
+
+## The pod waits until these init Jobs are gone (Helm removes each one once it
+## succeeds; a failed Job stays and the pod keeps waiting). kubectl wait, with
+## the chart's own ServiceAccount. Empty: no waiting. Keep the image within one
+## minor version of the cluster.
+waitForInitJobs:
+  jobs:
+    - forms-flow-queue-init
+    - forms-flow-objectstore-init
+  timeout: 900s
+  image:
+    registry: registry.k8s.io
+    repository: kubectl
+    tag: v1.36.0
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 64Mi}
+
+## @section Deployment parameters (as forms-flow-api)
+
+## @param replicaCount Number of forms-flow-offline-worker replicas
+replicaCount: 1
+## @param updateStrategy.type Deployment strategy type
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+## @param podLabels Extra labels for forms-flow-offline-worker pods
+podLabels: {}
+## @param podAnnotations Annotations for forms-flow-offline-worker pods
+podAnnotations: {}
+## @param hostAliases Pods host aliases
+hostAliases: []
+## @param affinity Affinity for pods assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type (soft or hard)
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param nodeSelector Node labels for pods assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pods assignment
+tolerations: []
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+## @param priorityClassName Pods' priority class name
+priorityClassName: ""
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+terminationGracePeriodSeconds: ""
+
+## @param serviceAccount.create Create a ServiceAccount for forms-flow-offline-worker
+## @param serviceAccount.name The ServiceAccount's name (empty: the chart's fullname)
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
+## true: the init containers wait for the init Jobs with kubectl (waitForInitJobs).
+automountServiceAccountToken: true
+
+## @param podSecurityContext.enabled Enable pods' Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  fsGroup: 1001
+## @param containerSecurityContext.enabled Enable containers' Security Context
+containerSecurityContext:
+  enabled: false
+  runAsNonRoot: false
+  privileged: false
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+
+## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the forms-flow-offline-worker container
+lifecycleHooks: {}
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pods
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the forms-flow-offline-worker container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources forms-flow-offline-worker container requests and limits
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {memory: 1Gi}

@@ -1,0 +1,13 @@
+apiVersion: v2
+name: forms-flow-queue
+description: "The queue for offline form submissions (NATS JetStream, encrypted on disk), with the forms-flow-queue-init Job that creates its streams."
+icon: "https://raw.githubusercontent.com/AOT-Technologies/forms-flow-ai/develop/.images/logo.png"
+version: 8.5.0
+type: application
+appVersion: "v7.3.1"
+dependencies:
+- name: common
+  repository: https://charts.bitnami.com/bitnami
+  tags:
+  - bitnami-common
+  version: 2.27.0

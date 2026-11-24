@@ -1,0 +1,225 @@
+## forms-flow-queue-ui: NUI, a read-only viewer of the offline forms queue
+## (forms waiting per stream, the trace of each form), served under a path of
+## the web host by an nginx sidecar.
+##
+## Signs in to forms-flow-queue as offline-viewer; the queue's address and the
+## viewer password (forms-flow-queue-ui.natsPassword, required) are in
+## chart forms-flow-ai. Install forms-flow-ai and forms-flow-queue first.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+## @param global.defaultStorageClass Storage class for the volume (empty: the cluster's default)
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  defaultStorageClass: ""
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+nameOverride: ""
+fullnameOverride: ""
+commonLabels: {}
+commonAnnotations: {}
+
+image:
+  registry: ghcr.io
+  repository: nats-nui/nui
+  tag: 0.9.3
+  pullPolicy: IfNotPresent
+  ## the -ee images are private
+  pullSecrets:
+    - forms-flow-ai-auth
+
+containerPorts:
+  nui: 31311
+
+## Writes NUI's connection from the viewer password.
+busybox:
+  image:
+    registry: docker.io
+    repository: library/busybox
+    tag: "1.36"
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 10m, memory: 16Mi}
+    limits: {memory: 32Mi}
+
+## NUI's own data (its saved views).
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 1Gi
+
+## @param ingress.hostname The web host (e.g. forms-flow-web-<namespace>.<domain>)
+## @param ingress.pathSuffix Added to the path ("/*" for the AWS ALB controller)
+## @param ingress.annotations e.g. the ALB group, certificate and health check
+ingress:
+  enabled: true
+  # nginx's port (the Service's nginx port).
+  servicePort: 8080
+  ingressClassName: ""
+  hostname: forms-flow-web.local
+  path: /queue
+  pathType: ImplementationSpecific
+  pathSuffix: ""
+  annotations: {}
+  # true: TLS from a Secret "<hostname>-tls" (not needed when the load balancer ends TLS).
+  tls: false
+
+## nginx sidecar in front of the container (like forms-flow-api's).
+ExtraContainer:
+  image:
+    registry: docker.io
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.27-alpine
+    pullPolicy: IfNotPresent
+  resources:
+    requests: {cpu: 20m, memory: 32Mi}
+    limits: {memory: 128Mi}
+
+## @section Deployment parameters (as forms-flow-api)
+
+## @param replicaCount Number of forms-flow-queue-ui replicas
+## Keep 1: one ReadWriteOnce volume.
+replicaCount: 1
+## @param updateStrategy.type Deployment strategy type
+## One ReadWriteOnce volume: the old pod must let go of it first.
+updateStrategy:
+  type: Recreate
+## @param podLabels Extra labels for forms-flow-queue-ui pods
+podLabels: {}
+## @param podAnnotations Annotations for forms-flow-queue-ui pods
+podAnnotations: {}
+## @param hostAliases Pods host aliases
+hostAliases: []
+## @param affinity Affinity for pods assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+## @param nodeAffinityPreset.type Node affinity preset type (soft or hard)
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+## @param nodeSelector Node labels for pods assignment
+nodeSelector: {}
+## @param tolerations Tolerations for pods assignment
+tolerations: []
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+## @param priorityClassName Pods' priority class name
+priorityClassName: ""
+## @param terminationGracePeriodSeconds Seconds pods need to terminate gracefully
+terminationGracePeriodSeconds: ""
+
+## @param serviceAccount.create Create a ServiceAccount for forms-flow-queue-ui
+## @param serviceAccount.name The ServiceAccount's name (empty: the chart's fullname)
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
+automountServiceAccountToken: false
+
+## @param podSecurityContext.enabled Enable pods' Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  fsGroup: 1001
+## @param containerSecurityContext.enabled Enable containers' Security Context
+containerSecurityContext:
+  enabled: true
+  allowPrivilegeEscalation: false
+
+## @param diagnosticMode.enabled Start the container with "sleep infinity" (debugging)
+diagnosticMode:
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the forms-flow-queue-ui container
+lifecycleHooks: {}
+
+## @param extraEnvVars Extra environment variables (list of name/value)
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pods
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the forms-flow-queue-ui container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+
+## @param startupProbe.enabled Enable startupProbe on forms-flow-queue-ui containers
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param livenessProbe.enabled Enable livenessProbe on forms-flow-queue-ui containers
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param readinessProbe.enabled Enable readinessProbe on forms-flow-queue-ui containers
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 1
+  failureThreshold: 3
+  successThreshold: 1
+## @param customStartupProbe Custom startupProbe that overrides the default one
+customStartupProbe: {}
+## @param customLivenessProbe Custom livenessProbe that overrides the default one
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readinessProbe that overrides the default one
+customReadinessProbe: {}
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "none"
+## @param resources forms-flow-queue-ui container requests and limits
+resources:
+  requests: {cpu: 20m, memory: 64Mi}
+  limits: {memory: 256Mi}
+
+## @section Service parameters (as forms-flow-api)
+service:
+  type: ClusterIP
+  ports:
+    - name: nginx
+      port: 8080
+      targetPort: nginx
+      protocol: TCP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: ""
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}

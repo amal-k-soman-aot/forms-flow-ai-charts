@@ -1,0 +1,106 @@
+# nats.conf for forms-flow-queue. Every secret comes from the environment
+# (Secret forms-flow-queue and the forms-flow-ai Secret), never from here.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "forms-flow-queue.name" . }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-queue.labels" (dict "name" (include "forms-flow-queue.name" .) "component" "queue" "context" $) | nindent 4 }}
+data:
+  nats.conf: |
+    # NATS for offline form submissions. The streams are made by the
+    # {{ .Values.init.name }} Job, not here.
+    server_name: {{ include "forms-flow-queue.name" . }}
+    port: {{ .Values.containerPorts.client }}
+    # Monitoring and health (/healthz).
+    http_port: {{ .Values.containerPorts.monitor }}
+
+    # A queue message is at most this big; larger answers go to the object store.
+    max_payload: {{ .Values.config.maxPayload }}
+
+    jetstream {
+      store_dir: /data
+      # Messages are encrypted on disk (JS_KEY).
+      cipher: chachapoly
+      key: $JS_KEY
+      max_file_store: {{ .Values.config.maxFileStore }}
+      max_memory_store: {{ .Values.config.maxMemoryStore }}
+    }
+
+    # Each service signs in with its own user and may do only its own part, so
+    # nobody can put a form on the queue without the bridge's token check.
+    # JetStream sends its answers to the asker's reply subjects. Each service
+    # has its own prefix (inbox_prefix in its code) and may read only that one:
+    # in one account every user allowed on a subject gets its messages, so a
+    # shared `_INBOX.>` would let any user read the forms the worker fetches.
+    authorization {
+      users = [
+        # Creates and updates the streams ({{ .Values.init.name }}).
+        {
+          user: offline-setup
+          password: $SETUP_PASSWORD
+          permissions: {
+            # (NATS wildcards match a whole name: `*` = any one stream.) Also
+            # makes the worker's consumers, so the worker cannot create any.
+            publish: ["$JS.API.STREAM.INFO.*", "$JS.API.STREAM.CREATE.*", "$JS.API.STREAM.UPDATE.*",
+                      "$JS.API.CONSUMER.CREATE.*.*", "$JS.API.CONSUMER.CREATE.*.*.>", "$JS.API.CONSUMER.DURABLE.CREATE.*.*"]
+            subscribe: ["_INBOX_setup.>"]
+          }
+        }
+        # Hands forms over: may only publish to the main queue and the forms'
+        # metadata. Also writes a form's first status ("queued"), reads the
+        # statuses to answer the device (direct get of one subject), and adds
+        # trace events.
+        {
+          user: offline-bridge
+          password: $BRIDGE_PASSWORD
+          permissions: {
+            publish: ["offline.submissions", "offline.metadata", "offline.status.>",
+                      "$JS.API.DIRECT.GET.OFFLINE_STATUS.offline.status.>", "offline.trace.>"]
+            subscribe: ["_INBOX_bridge.>"]
+          }
+        }
+        # The offline worker (the consumers): takes forms from both work queues
+        # and the metadata queue with its consumers, answers them (ack), puts a
+        # form on the retry queue and publishes each form's status and trace
+        # events. It cannot put new forms in.
+        {
+          user: offline-worker
+          password: $WORKER_PASSWORD
+          permissions: {
+            publish: ["$JS.API.CONSUMER.INFO.OFFLINE_SUBMISSIONS.offline-worker", "$JS.API.CONSUMER.INFO.OFFLINE_RETRY.offline-worker",
+                      "$JS.API.CONSUMER.INFO.OFFLINE_METADATA.offline-metadata",
+                      "$JS.API.CONSUMER.MSG.NEXT.OFFLINE_SUBMISSIONS.offline-worker", "$JS.API.CONSUMER.MSG.NEXT.OFFLINE_RETRY.offline-worker",
+                      "$JS.API.CONSUMER.MSG.NEXT.OFFLINE_METADATA.offline-metadata",
+                      "$JS.ACK.OFFLINE_SUBMISSIONS.offline-worker.>", "$JS.ACK.OFFLINE_RETRY.offline-worker.>",
+                      "$JS.ACK.OFFLINE_METADATA.offline-metadata.>",
+                      "offline.retry", "offline.status.>", "offline.trace.>"]
+            subscribe: ["_INBOX_worker.>"]
+          }
+        }
+        # The queue viewer (forms-flow-queue-ui): reads how many forms wait
+        # in each stream and consumer, and the trace stream's events (never
+        # answers or who the user is). It cannot read a form, take one from the
+        # queue or change anything, nor the status stream's details (its
+        # subject names hold the tenant, user and receipt number). Reading the
+        # trace needs a short-lived consumer, allowed on OFFLINE_TRACE only.
+        {
+          user: offline-viewer
+          password: $VIEWER_PASSWORD
+          permissions: {
+            publish: {
+              allow: ["$JS.API.INFO", "$JS.API.STREAM.NAMES", "$JS.API.STREAM.LIST", "$JS.API.STREAM.INFO.*",
+                      "$JS.API.CONSUMER.NAMES.*", "$JS.API.CONSUMER.LIST.*", "$JS.API.CONSUMER.INFO.*.*",
+                      "$JS.API.STREAM.MSG.GET.OFFLINE_TRACE", "$JS.API.DIRECT.GET.OFFLINE_TRACE", "$JS.API.DIRECT.GET.OFFLINE_TRACE.>",
+                      "$JS.API.CONSUMER.CREATE.OFFLINE_TRACE", "$JS.API.CONSUMER.CREATE.OFFLINE_TRACE.>",
+                      "$JS.API.CONSUMER.MSG.NEXT.OFFLINE_TRACE.*", "$JS.API.CONSUMER.DELETE.OFFLINE_TRACE.*",
+                      "$JS.FC.OFFLINE_TRACE.>", "$JS.ACK.OFFLINE_TRACE.>"]
+              deny: ["$JS.API.STREAM.INFO.OFFLINE_STATUS"]
+            }
+            # The viewer uses the standard `_INBOX` prefix; the services'
+            # replies are never readable here.
+            subscribe: { allow: ["_INBOX.>"], deny: ["_INBOX_setup.>", "_INBOX_bridge.>", "_INBOX_worker.>"] }
+          }
+        }
+      ]
+    }

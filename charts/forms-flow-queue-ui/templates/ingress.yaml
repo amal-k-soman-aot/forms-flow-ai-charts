@@ -1,0 +1,28 @@
+{{- if .Values.ingress.enabled }}
+{{- $name := include "forms-flow-queue-ui.name" . }}
+{{- $path := trimSuffix "/" .Values.ingress.path }}
+# forms-flow-queue-ui under {{ $path }} on the shared web host.
+apiVersion: {{ include "common.capabilities.ingress.apiVersion" . }}
+kind: Ingress
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-queue-ui.labels" (dict "name" $name "component" "queue-ui" "context" $) | nindent 4 }}
+  {{- include "forms-flow-queue-ui.ingressAnnotations" . | nindent 2 }}
+spec:
+  {{- if .Values.ingress.ingressClassName }}
+  ingressClassName: {{ .Values.ingress.ingressClassName | quote }}
+  {{- end }}
+  rules:
+    - host: {{ tpl .Values.ingress.hostname . | quote }}
+      http:
+        paths:
+          - path: {{ printf "%s%s" $path .Values.ingress.pathSuffix | quote }}
+            pathType: {{ .Values.ingress.pathType }}
+            backend: {{- include "common.ingress.backend" (dict "serviceName" $name "servicePort" "nginx" "context" $) | nindent 14 }}
+  {{- if .Values.ingress.tls }}
+  tls:
+    - hosts: [{{ tpl .Values.ingress.hostname . | quote }}]
+      secretName: {{ printf "%s-tls" (tpl .Values.ingress.hostname .) }}
+  {{- end }}
+{{- end }}

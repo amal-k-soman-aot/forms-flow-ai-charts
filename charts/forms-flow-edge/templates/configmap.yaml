@@ -1,0 +1,22 @@
+{{- $name := include "forms-flow-edge.name" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-edge.labels" (dict "name" $name "component" "edge" "context" $) | nindent 4 }}
+data:
+  # Limits: connections, bytes per request, requests at once to the bridge.
+  OFFLINE_EDGE_MAX_CONNECTIONS: {{ .Values.limits.maxConnections | quote }}
+  OFFLINE_EDGE_MAX_REQUEST_BYTES: {{ .Values.limits.maxRequestBytes | quote }}
+  OFFLINE_EDGE_MAX_BRIDGE_REQUESTS: {{ .Values.limits.maxBridgeRequests | quote }}
+  # The bridge's address (chart forms-flow-bridge).
+  OFFLINE_EDGE_BRIDGE_HOST: {{ .Values.bridge.host | quote }}
+  OFFLINE_EDGE_BRIDGE_HTTP_PORT: {{ .Values.bridge.httpPort | quote }}
+  OFFLINE_EDGE_BRIDGE_GRPC_PORT: {{ .Values.bridge.grpcPort | quote }}
+  # Proxies in front of the edge that Envoy trusts for the client address.
+  OFFLINE_EDGE_TRUSTED_HOPS: {{ .Values.trustedHops | quote }}
+  # false: TLS ends at the load balancer and Envoy serves plain HTTP.
+  OFFLINE_EDGE_TLS: {{ .Values.tls.enabled | quote }}
+  # Only for Keycloak's https keys address with a private CA.
+  OFFLINE_EDGE_IDP_CA_FILE: {{ .Values.idpCaFile | quote }}

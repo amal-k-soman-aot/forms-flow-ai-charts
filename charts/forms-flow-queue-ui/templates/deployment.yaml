@@ -1,0 +1,226 @@
+# forms-flow-queue-ui: NUI, a read-only viewer of the queue (forms waiting
+# per stream, trace events). Signs in to the queue as offline-viewer; the
+# init container writes NUI's connection from the viewer password.
+apiVersion: {{ include "common.capabilities.deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ include "common.names.fullname" . }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: queue-ui
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+spec:
+  {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list .Values.podLabels .Values.commonLabels ) "context" . ) }}
+  selector:
+    matchLabels: {{- include "common.labels.matchLabels" ( dict "customLabels" $podLabels "context" $ ) | nindent 6 }}
+  replicas: {{ .Values.replicaCount }}
+  strategy: {{- include "common.tplvalues.render" (dict "value" .Values.updateStrategy "context" $ ) | nindent 4 }}
+  template:
+    metadata:
+      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
+        app.kubernetes.io/component: queue-ui
+      annotations:
+        checksum/nginx: {{ include (print $.Template.BasePath "/proxy-config.yaml") . | sha256sum }}
+        {{- if .Values.podAnnotations }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "forms-flow-queue-ui.serviceAccountName" . }}
+      {{- include "forms-flow-queue-ui.imagePullSecrets" . | nindent 6 }}
+      automountServiceAccountToken: {{ .Values.automountServiceAccountToken }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- include "common.tplvalues.render" (dict "value" .Values.hostAliases "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" .Values.affinity "context" $) | nindent 8 }}
+      {{- else }}
+      affinity:
+        podAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAffinityPreset "component" "queue-ui" "customLabels" $podLabels "context" $) | nindent 10 }}
+        podAntiAffinity: {{- include "common.affinities.pods" (dict "type" .Values.podAntiAffinityPreset "component" "queue-ui" "customLabels" $podLabels "context" $) | nindent 10 }}
+        nodeAffinity: {{- include "common.affinities.nodes" (dict "type" .Values.nodeAffinityPreset.type "key" .Values.nodeAffinityPreset.key "values" .Values.nodeAffinityPreset.values) | nindent 10 }}
+      {{- end }}
+      {{- if .Values.nodeSelector }}
+      nodeSelector: {{- include "common.tplvalues.render" (dict "value" .Values.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.tolerations }}
+      tolerations: {{- include "common.tplvalues.render" (dict "value" .Values.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.schedulerName }}
+      schedulerName: {{ .Values.schedulerName }}
+      {{- end }}
+      {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- include "common.tplvalues.render" (dict "value" .Values.topologySpreadConstraints "context" .) | nindent 8 }}
+      {{- end }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName | quote }}
+      {{- end }}
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- if .Values.podSecurityContext.enabled }}
+      securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.podSecurityContext "context" $) | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: write-connection
+          image: {{ include "forms-flow-queue-ui.images.image" (dict "image" .Values.busybox.image "context" $) }}
+          imagePullPolicy: {{ .Values.busybox.image.pullPolicy | quote }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              test -n "$VIEWER_PASSWORD" || { echo 'Set forms-flow-queue-ui.natsPassword (forms-flow-ai)'; exit 1; }
+              # JSON-escape backslashes and quotes in the password.
+              pw=$(printf '%s' "$VIEWER_PASSWORD" | sed 's/\\/\\\\/g; s/"/\\"/g')
+              umask 022
+              printf '{"description":"forms-flow offline queue (read-only viewer)","url":"%s","user":"offline-viewer","password":"%s"}\n' "$NATS_URL" "$pw" > /clicontexts/forms-flow-queue.json
+              echo 'wrote /clicontexts/forms-flow-queue.json'
+          env:
+          - name: NATS_URL
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NATS_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: VIEWER_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_NATS_VIEWER_PASSWORD
+                name: "{{ .Values.formsflow.secret }}"
+          resources: {{- toYaml .Values.busybox.resources | nindent 12 }}
+          volumeMounts:
+          - name: clicontexts
+            mountPath: /clicontexts
+        {{- if .Values.initContainers }}
+        {{- include "common.tplvalues.render" (dict "value" .Values.initContainers "context" $) | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: forms-flow-queue-ui
+          image: {{ include "forms-flow-queue-ui.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.diagnosticMode.enabled }}
+          command: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.command "context" $) | nindent 12 }}
+          {{- else if .Values.command }}
+          command: {{- include "common.tplvalues.render" (dict "value" .Values.command "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.diagnosticMode.enabled }}
+          args: {{- include "common.tplvalues.render" (dict "value" .Values.diagnosticMode.args "context" $) | nindent 12 }}
+          {{- else if .Values.args }}
+          args: {{- include "common.tplvalues.render" (dict "value" .Values.args "context" $) | nindent 12 }}
+          {{- else }}
+          args: ["--nats-cli-contexts=/clicontexts"]
+          {{- end }}
+          {{- if .Values.lifecycleHooks }}
+          lifecycle: {{- include "common.tplvalues.render" (dict "value" .Values.lifecycleHooks "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.extraEnvVars }}
+          env:
+          {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 10 }}
+          {{- end }}
+          {{- if or .Values.extraEnvVarsCM .Values.extraEnvVarsSecret }}
+          envFrom:
+            {{- if .Values.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if .Values.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "common.tplvalues.render" (dict "value" .Values.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- end }}
+          ports:
+          - name: nui
+            containerPort: {{ .Values.containerPorts.nui }}
+            protocol: TCP
+          {{- if not .Values.diagnosticMode.enabled }}
+          {{- if .Values.customStartupProbe }}
+          startupProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customStartupProbe "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if .Values.customLivenessProbe }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customLivenessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.livenessProbe.enabled }}
+          livenessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.livenessProbe "enabled") "context" $) | nindent 12 }}
+            tcpSocket:
+              port: nui
+          {{- end }}
+          {{- if .Values.customReadinessProbe }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" .Values.customReadinessProbe "context" $) | nindent 12 }}
+          {{- else if .Values.readinessProbe.enabled }}
+          readinessProbe: {{- include "common.tplvalues.render" (dict "value" (omit .Values.readinessProbe "enabled") "context" $) | nindent 12 }}
+            tcpSocket:
+              port: nui
+          {{- end }}
+          {{- end }}
+          {{- if .Values.resources }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+          {{- else if ne .Values.resourcesPreset "none" }}
+          resources: {{- include "common.resources.preset" (dict "type" .Values.resourcesPreset) | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - name: db
+            mountPath: /db
+          - name: clicontexts
+            mountPath: /clicontexts
+            readOnly: true
+          {{- if .Values.extraVolumeMounts }}
+          {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumeMounts "context" $) | nindent 10 }}
+          {{- end }}
+        - name: nginx
+          image: {{ include "forms-flow-queue-ui.nginx.image" . }}
+          imagePullPolicy: {{ .Values.ExtraContainer.image.pullPolicy | quote }}
+          {{- if .Values.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" .Values.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          ports:
+          - name: nginx
+            containerPort: {{ .Values.ingress.servicePort }}
+            protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: nginx
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: nginx
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          {{- if .Values.ExtraContainer.resources }}
+          resources: {{- toYaml .Values.ExtraContainer.resources | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - name: nginx-config-volume
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+          - name: nginx-cache
+            mountPath: /var/cache/nginx
+        {{- if .Values.sidecars }}
+        {{- include "common.tplvalues.render" ( dict "value" .Values.sidecars "context" $) | nindent 8 }}
+        {{- end }}
+      volumes:
+      - name: nginx-cache
+        emptyDir: {}
+      - name: nginx-config-volume
+        configMap:
+          name: {{ include "common.names.fullname" . }}-nginx-config
+      - name: db
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ .Values.persistence.existingClaim | default (include "common.names.fullname" .) }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      # The connection (with the password) lives in memory only.
+      - name: clicontexts
+        emptyDir:
+          medium: Memory
+          sizeLimit: 1Mi
+      {{- if .Values.extraVolumes }}
+      {{- include "common.tplvalues.render" (dict "value" .Values.extraVolumes "context" $) | nindent 6 }}
+      {{- end }}
+      restartPolicy: Always

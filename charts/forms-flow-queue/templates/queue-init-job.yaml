@@ -1,0 +1,132 @@
+{{- if .Values.init.enabled }}
+{{- $j := .Values.init }}
+{{- $queue := include "common.names.fullname" . }}
+# forms-flow-queue-init: creates or updates the queue's streams and the
+# worker's consumers, then stops. A Helm hook: it runs again after every
+# install and upgrade of this chart (safe to run again), once the queue is
+# up. Settings: queue-init-configmap.yaml. Runs the webapi image.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $j.name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  {{- /* Its own app.kubernetes.io/name, so the Service never selects its pod. */}}
+  {{- $labels := include "common.tplvalues.merge" ( dict "values" ( list (dict "app.kubernetes.io/name" $j.name) .Values.commonLabels ) "context" . ) }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" $labels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: queue-init
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "0"
+    # Removed once it succeeds; a failed Job stays for its logs.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    {{- if .Values.commonAnnotations }}
+    {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+    {{- end }}
+spec:
+  backoffLimit: {{ $j.backoffLimit }}
+  {{- if $j.activeDeadlineSeconds }}
+  activeDeadlineSeconds: {{ $j.activeDeadlineSeconds }}
+  {{- end }}
+  {{- if $j.ttlSecondsAfterFinished }}
+  ttlSecondsAfterFinished: {{ $j.ttlSecondsAfterFinished }}
+  {{- end }}
+  template:
+    metadata:
+      {{- $podLabels := include "common.tplvalues.merge" ( dict "values" ( list (dict "app.kubernetes.io/name" $j.name) $j.podLabels .Values.commonLabels ) "context" . ) }}
+      labels: {{- include "common.labels.standard" ( dict "customLabels" $podLabels "context" $ ) | nindent 8 }}
+        app.kubernetes.io/component: queue-init
+      annotations:
+        checksum/configuration: {{ include (print $.Template.BasePath "/queue-init-configmap.yaml") . | sha256sum }}
+        {{- if $j.podAnnotations }}
+        {{- include "common.tplvalues.render" (dict "value" $j.podAnnotations "context" $) | nindent 8 }}
+        {{- end }}
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: {{ include "forms-flow-queue.serviceAccountName" . }}
+      {{- include "forms-flow-queue.pullSecrets" (dict "images" (list .Values.image $j.image .Values.busybox.image) "context" $) | nindent 6 }}
+      automountServiceAccountToken: {{ $j.automountServiceAccountToken }}
+      {{- if $j.affinity }}
+      affinity: {{- include "common.tplvalues.render" (dict "value" $j.affinity "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.nodeSelector }}
+      nodeSelector: {{- include "common.tplvalues.render" (dict "value" $j.nodeSelector "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.tolerations }}
+      tolerations: {{- include "common.tplvalues.render" (dict "value" $j.tolerations "context" $) | nindent 8 }}
+      {{- end }}
+      {{- if $j.priorityClassName }}
+      priorityClassName: {{ $j.priorityClassName | quote }}
+      {{- end }}
+      {{- if $j.podSecurityContext.enabled }}
+      securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.podSecurityContext "context" $) | nindent 8 }}
+      {{- end }}
+      initContainers:
+        # Waits until the queue (with JetStream) answers.
+        - name: wait-for-queue
+          image: {{ include "forms-flow-queue.images.image" (dict "image" .Values.busybox.image "context" $) }}
+          imagePullPolicy: {{ .Values.busybox.image.pullPolicy | quote }}
+          {{- if $j.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              until wget -q -O /dev/null "http://{{ $queue }}:{{ .Values.containerPorts.monitor }}/healthz?js-enabled-only=true";
+              do echo 'waiting for {{ $queue }}'; sleep 5; done
+          resources: {{- toYaml .Values.busybox.resources | nindent 12 }}
+        {{- if $j.initContainers }}
+        {{- include "common.tplvalues.render" (dict "value" $j.initContainers "context" $) | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: {{ $j.name }}
+          # The webapi image with another entrypoint.
+          image: {{ include "forms-flow-queue.images.image" (dict "image" $j.image "context" $) }}
+          imagePullPolicy: {{ $j.image.pullPolicy | quote }}
+          {{- if $j.containerSecurityContext.enabled }}
+          securityContext: {{- include "common.compatibility.renderSecurityContext" (dict "secContext" $j.containerSecurityContext "context" $) | nindent 12 }}
+          {{- end }}
+          {{- if $j.command }}
+          command: {{- include "common.tplvalues.render" (dict "value" $j.command "context" $) | nindent 12 }}
+          {{- else }}
+          command: ["python", "-m", "formsflow_offline_bridge.streams"]
+          {{- end }}
+          {{- if $j.args }}
+          args: {{- include "common.tplvalues.render" (dict "value" $j.args "context" $) | nindent 12 }}
+          {{- end }}
+          env:
+          - name: NATS_URL
+            valueFrom:
+              configMapKeyRef:
+                key: OFFLINE_NATS_URL
+                name: "{{ .Values.formsflow.configmap }}"
+          - name: NATS_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                key: OFFLINE_NATS_SETUP_PASSWORD
+                name: "{{ .Values.formsflow.secret }}"
+          {{- if $j.extraEnvVars }}
+          {{- include "common.tplvalues.render" (dict "value" $j.extraEnvVars "context" $) | nindent 10 }}
+          {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ $j.name }}
+            {{- if $j.extraEnvVarsCM }}
+            - configMapRef:
+                name: {{ include "common.tplvalues.render" (dict "value" $j.extraEnvVarsCM "context" $) }}
+            {{- end }}
+            {{- if $j.extraEnvVarsSecret }}
+            - secretRef:
+                name: {{ include "common.tplvalues.render" (dict "value" $j.extraEnvVarsSecret "context" $) }}
+            {{- end }}
+          {{- if $j.resources }}
+          resources: {{- toYaml $j.resources | nindent 12 }}
+          {{- else if ne $j.resourcesPreset "none" }}
+          resources: {{- include "common.resources.preset" (dict "type" $j.resourcesPreset) | nindent 12 }}
+          {{- end }}
+          {{- if $j.extraVolumeMounts }}
+          volumeMounts: {{- include "common.tplvalues.render" (dict "value" $j.extraVolumeMounts "context" $) | nindent 12 }}
+          {{- end }}
+      {{- if $j.extraVolumes }}
+      volumes: {{- include "common.tplvalues.render" (dict "value" $j.extraVolumes "context" $) | nindent 8 }}
+      {{- end }}
+{{- end }}

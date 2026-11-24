@@ -1,0 +1,58 @@
+{{- $name := include "forms-flow-edge.name" . }}
+{{- $path := trimSuffix "/" .Values.ingress.path }}
+# nginx sidecar in front of Envoy (like forms-flow-api's): serves the edge
+# under {{ $path }} on the shared web host.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-nginx-config
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-edge.labels" (dict "name" $name "component" "edge" "context" $) | nindent 4 }}
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      server {
+        listen {{ $.Values.ingress.servicePort }};
+        # Envoy's own limit is limits.maxRequestBytes.
+        client_max_body_size {{ $.Values.maxSizePayload }};
+
+        # Load balancer health check: Envoy's /ready (admin port), 200 only
+        # when nginx and Envoy are both up.
+        location = {{ $path }}/healthz {
+          access_log off;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_pass http://127.0.0.1:{{ $.Values.adminPort }}/ready;
+        }
+
+        # {{ $path }}/<path> -> Envoy /<path> (the trailing slashes strip {{ $path }}).
+        location {{ $path }}/ {
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Prefix {{ $path }};
+
+          # gRPC-Web answers can stream: pass them through as they come.
+          proxy_buffering off;
+          proxy_request_buffering off;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+
+          # 127.0.0.1, not localhost: Envoy listens on IPv4 only.
+          proxy_pass http://127.0.0.1:{{ $.Values.containerPorts.edge }}/;
+        }
+
+        location = {{ $path }} {
+          return 301 {{ $path }}/;
+        }
+      }
+    }
+
+    pid /tmp/nginx.pid;

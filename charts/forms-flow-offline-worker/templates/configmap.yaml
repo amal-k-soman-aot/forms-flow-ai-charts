@@ -1,0 +1,16 @@
+{{- $name := include "forms-flow-offline-worker.name" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-offline-worker.labels" (dict "name" $name "component" "offline-worker" "context" $) | nindent 4 }}
+data:
+  NATS_USER: "offline-worker"
+  # The store user made for the worker by forms-flow-objectstore-init.
+  OFFLINE_STORE_ACCESS_KEY: "offline-worker"
+  # Forms saved at once per worker pod.
+  OFFLINE_WORKER_CONCURRENCY: {{ .Values.concurrency | quote }}
+  # Forms' metadata (stream OFFLINE_METADATA): saved at once, and retried for.
+  OFFLINE_METADATA_CONCURRENCY: {{ .Values.metadataConcurrency | quote }}
+  OFFLINE_METADATA_MAX_HOURS: {{ .Values.metadataMaxHours | quote }}

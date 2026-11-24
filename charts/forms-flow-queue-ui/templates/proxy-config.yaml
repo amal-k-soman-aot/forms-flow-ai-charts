@@ -1,0 +1,60 @@
+{{- $name := include "forms-flow-queue-ui.name" . }}
+{{- $path := trimSuffix "/" $.Values.ingress.path }}
+# nginx sidecar in front of NUI: serves the viewer under {{ $path }}.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name }}-nginx-config
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "forms-flow-queue-ui.labels" (dict "name" $name "component" "queue-ui" "context" $) | nindent 4 }}
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      # WebSocket: pass "Upgrade" on when the browser asks for it.
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        ''      '';
+      }
+
+      server {
+        listen {{ $.Values.ingress.servicePort }};
+
+        # Load balancer health check: NUI answers, not logged.
+        location = {{ $path }}/healthz {
+          access_log off;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          proxy_pass http://127.0.0.1:{{ $.Values.containerPorts.nui }}/;
+        }
+
+        # {{ $path }}/<path> -> NUI /<path> (the trailing slashes strip {{ $path }}).
+        location {{ $path }}/ {
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header X-Forwarded-Prefix {{ $path }};
+
+          # The UI keeps a WebSocket open: no buffering, long timeouts.
+          proxy_buffering off;
+          proxy_read_timeout 3600s;
+          proxy_send_timeout 3600s;
+
+          # 127.0.0.1, not localhost (IPv4 only).
+          proxy_pass http://127.0.0.1:{{ $.Values.containerPorts.nui }}/;
+        }
+
+        location = {{ $path }} {
+          return 301 {{ $path }}/;
+        }
+      }
+    }
+
+    pid /tmp/nginx.pid;

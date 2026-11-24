@@ -1,0 +1,274 @@
+## forms-flow-process-gateway: checks the user's token and passes process
+## requests on to the engine (Camunda). Keycloak, URLs, the BPM client and
+## the offline worker settings come from chart forms-flow-ai's ConfigMap and
+## Secret (formsflow.configmap / formsflow.secret); install it first.
+
+## @param global.imageRegistry Global Docker image registry
+## @param global.imagePullSecrets Docker registry secret names for every image
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+
+replicaCount: 1
+image:
+  registry: docker.io
+  repository: formsflow/forms-flow-process-gateway-ee
+  pullPolicy: Always
+  tag: "v7.3.1"
+  ## the -ee image is private
+  pullSecrets:
+    - forms-flow-ai-auth
+## @param nameOverride String to partially override common.names.fullname
+nameOverride: ""
+## @param fullnameOverride String to fully override common.names.fullname
+fullnameOverride: ""
+## @param commonLabels Labels to add to all deployed objects
+commonLabels: {}
+## @param commonAnnotations Annotations to add to all deployed objects
+commonAnnotations: {}
+
+## Names of the forms-flow-ai ConfigMap and Secret (chart forms-flow-ai).
+formsflow:
+  configmap: forms-flow-ai
+  secret: forms-flow-ai
+
+## @param camundaBaseUrlKey forms-flow-ai ConfigMap key for CAMUNDA_BASE_URL:
+## BPM_API_URL (public, https://<web host>/camunda) or BPM_API_SERVICE_URL
+## (in the cluster, http://forms-flow-bpm:8080/camunda)
+camundaBaseUrlKey: BPM_API_URL
+
+## Settings of the gateway itself (this chart's ConfigMap).
+configuration:
+  fastapiEnv: production
+  ## uvicorn worker processes
+  workers: "1"
+  ## Proxies whose X-Forwarded-* headers are trusted
+  forwardedAllowIps: "*"
+  logLevel: INFO
+  ## Engine topology file inside the image
+  engineConfigFile: /app/config/gateway_config.yaml
+  ## Comma-separated engine adapters
+  adapters: camunda
+  camundaUrlPrefix: /engine-rest-ext/v1
+
+## @param proxyPath Path the web app calls the gateway under; nginx strips it
+proxyPath: /gatewayapi
+## @param maxSizePayload Largest request body nginx accepts
+maxSizePayload: 50m
+
+containerPorts:
+  http: 8000
+
+## @param tolerations Tolerations for pod assignment
+tolerations: []
+## @param nodeSelector Node labels for pod assignment
+nodeSelector: {}
+## @param affinity Affinity for pod assignment (podAffinityPreset, podAntiAffinityPreset and nodeAffinityPreset are ignored when set)
+affinity: {}
+## @param priorityClassName Pod priority
+priorityClassName: ""
+## @param schedulerName Name of the k8s scheduler (other than default)
+schedulerName: ""
+## @param terminationGracePeriodSeconds Seconds the pod needs to terminate gracefully
+terminationGracePeriodSeconds: ""
+## @param topologySpreadConstraints Topology Spread Constraints for pod assignment
+topologySpreadConstraints: []
+
+diagnosticMode:
+  ## @param diagnosticMode.enabled Enable diagnostic mode (probes disabled, command overridden)
+  enabled: false
+  command:
+    - sleep
+  args:
+    - infinity
+
+hostAliases: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  ## The name of the service account (empty and create true: the fullname)
+  name: ""
+  automountServiceAccountToken: false
+## @param automountServiceAccountToken Mount the Service Account token in the pod (not needed)
+automountServiceAccountToken: false
+## @param podAnnotations Pod annotations
+podAnnotations: {}
+## @param podLabels Extra labels for the pods
+podLabels: {}
+## @param podAffinityPreset Pod affinity preset (soft or hard)
+podAffinityPreset: ""
+## @param podAntiAffinityPreset Pod anti-affinity preset (soft or hard)
+podAntiAffinityPreset: soft
+nodeAffinityPreset:
+  type: ""
+  key: ""
+  values: []
+
+## @param podSecurityContext.enabled Enable the pods' Security Context
+podSecurityContext:
+  enabled: false
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+  fsGroup: 1001
+## @param containerSecurityContext.enabled Enable the containers' Security Context
+## Both images run as their own non-root user, so no runAsUser is set.
+containerSecurityContext:
+  enabled: true
+  seLinuxOptions: {}
+  privileged: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+  seccompProfile:
+    type: "RuntimeDefault"
+## @param command Override the default container command
+command: []
+## @param args Override the default container args
+args: []
+## @param lifecycleHooks Lifecycle hooks for the gateway container
+lifecycleHooks: {}
+## @param extraEnvVars Extra environment variables (list of name/value)
+## Example:
+## extraEnvVars:
+##   - name: JWT_OIDC_TIMEOUT_S
+##     value: "5.0"
+extraEnvVars: []
+## @param extraEnvVarsCM ConfigMap with extra environment variables
+extraEnvVarsCM: ""
+## @param extraEnvVarsSecret Secret with extra environment variables
+extraEnvVarsSecret: ""
+## @param extraVolumes Extra volumes for the pod
+extraVolumes: []
+## @param extraVolumeMounts Extra volume mounts for the gateway container
+extraVolumeMounts: []
+## @param initContainers Extra init containers
+initContainers: []
+## @param sidecars Extra sidecar containers
+sidecars: []
+ExtraContainer:
+  ## nginx sidecar: serves the gateway under proxyPath on ingress.servicePort
+  image:
+    registry: docker.io
+    repository: nginxinc/nginx-unprivileged
+    pullPolicy: Always
+    tag: "latest"
+  resources: {}
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+
+ingress:
+  ## @param ingress.enabled Enable the Ingress
+  enabled: true
+  ## @param ingress.ingressClassName IngressClass of the Ingress
+  ingressClassName: ""
+  ## @param ingress.pathType Ingress path type
+  pathType: ImplementationSpecific
+  apiVersion: ""
+  controller: default
+  ## @param ingress.hostname Host (the web app's host; evaluated as template)
+  hostname: forms-flow-web.local
+  ## @param ingress.path Path (evaluated as template); AWS ALB needs "/gatewayapi/*"
+  path: "/gatewayapi"
+  ## @param ingress.servicePort Service port the Ingress sends to (the nginx sidecar)
+  servicePort: 8080
+  annotations: {}
+  labels: {}
+  tls: false
+  selfSigned: false
+  extraHosts: []
+  extraPaths: []
+  extraTls: []
+  secrets: []
+  extraRules: []
+
+## @param pdb.create Create a pod disruption budget
+pdb:
+  create: true
+  minAvailable: ""
+  maxUnavailable: ""
+
+## @param resourcesPreset Resources preset when resources is empty (none, nano, micro, small, medium, large, xlarge, 2xlarge)
+resourcesPreset: "small"
+## @param resources Gateway container requests and limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+## Probes on GET /health
+startupProbe:
+  enabled: false
+  initialDelaySeconds: 0
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 10
+  successThreshold: 1
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 45
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 3
+  successThreshold: 1
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+  successThreshold: 1
+## @param customStartupProbe Custom startup probe (overrides startupProbe)
+customStartupProbe: {}
+## @param customLivenessProbe Custom liveness probe (overrides livenessProbe)
+customLivenessProbe: {}
+## @param customReadinessProbe Custom readiness probe (overrides readinessProbe)
+customReadinessProbe: {}
+
+service:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+      protocol: TCP
+    - name: nginx
+      port: 8080
+      targetPort: nginx
+      protocol: TCP
+  loadBalancerIP: ""
+  loadBalancerSourceRanges: []
+  externalTrafficPolicy: ""
+  clusterIP: ""
+  annotations: {}
+  sessionAffinity: None
+  sessionAffinityConfig: {}
+
+## Autoscaling. More than one copy needs forms-flow-ai's
+## forms-flow-offline-worker.replayRedisUrl (shared check of on-behalf tokens).
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 11
+  targetCPU: ""
+  targetMemory: ""
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 120
+      selectPolicy: Max
+      policies: []
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      selectPolicy: Max
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300

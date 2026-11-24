@@ -256,43 +256,8 @@ forms-flow-idm:
 | `pgpool.service.portName`                      | Port name for the Pgpool service.                           | `postgresql`                  |
 | `pgpool.service.nodePorts.postgresql`         | Node port for Pgpool service.                               | `""`                           |
 
-### Redis 
+### Redis
 
-| Parameter                                        | Description                                                  | Default Value                  |
-|--------------------------------------------------|--------------------------------------------------------------|--------------------------------|
-| `redisExporter.replicaCounts`                    | Number of Redis Exporter replicas.                           | `1`                            |
-| `redisExporter.service.type`                     | Service type for Redis Exporter.                             | `ClusterIP`                   |
-| `redisExporter.service.portNames.redis`          | Port name for Redis client.                                  | `client`                       |
-| `redisExporter.service.portNames.redis2`         | Port name for Redis gossip.                                  | `gossip`                       |
-| `redisExporter.service.ports.redis`              | Port for Redis client.                                       | `6379`                         |
-| `redisExporter.service.ports.redis2`             | Port for Redis gossip.                                       | `16379`                       |
-| `redisExporter.service.externalTrafficPolicy`     | External traffic policy for the service.                     | `Cluster`                     |
-| `redisExporter.service.sessionAffinity`           | Session affinity for the service.                            | `None`                        |
-| `redisExporter.service.annotations`               | Annotations for the service.                                 | `{}`                          |
-| `redisExporter.podLabels`                         | Labels for Redis Exporter pods.                              | `{}`                          |
-| `redisExporter.extraEnvVarsCM`                   | Additional environment variable config map.                  | `{}`                          |
-| `redisExporter.extraEnvVars`                      | Additional environment variables.                             | `{}`                          |
-| `redisExporter.extraEnvVarsSecret`               | Additional secret environment variables.                     | `{}`                          |
-| `redisExporter.redis.configMap.redis_conf`      | Redis configuration settings.                                | See below for detailed config  |
-| `redisExporter.image.registry`                   | Docker image registry for Redis.                             | `docker.io`                   |
-| `redisExporter.image.repository`                 | Docker image repository for Redis.                           | `redis`                       |
-| `redisExporter.image.tag`                        | Docker image tag for Redis.                                  | `7.2.4-alpine`                |
-| `redisExporter.image.pullPolicy`                 | Image pull policy.                                          | `Always`                 |
-| `redisExporter.image.pullSecrets`                | Secrets for pulling the Docker image.                       | `[]`                          |
-| `redisExporter.livenessProbe.enabled`            | Enable liveness probe for Redis Exporter.                   | `true`                         |
-| `redisExporter.livenessProbe.initialDelaySeconds`| Initial delay for liveness probe.                           | `30`                           |
-| `redisExporter.livenessProbe.periodSeconds`      | Period for liveness probe checks.                           | `5`                            |
-| `redisExporter.readinessProbe.enabled`           | Enable readiness probe for Redis Exporter.                  | `true`                         |
-| `redisExporter.readinessProbe.initialDelaySeconds`| Initial delay for readiness probe.                          | `10`                           |
-| `redisExporter.readinessProbe.periodSeconds`     | Period for readiness probe checks.                          | `3`                            |
-| `redisExporter.containerPorts.client`            | Client port for Redis Exporter.                             | `6379`                         |
-| `redisExporter.containerPorts.gossip`            | Gossip port for Redis Exporter.                             | `16379`                       |
-| `redisExporter.resources.limits.cpu`             | CPU limit for Redis Exporter.                               | `60m`                          |
-| `redisExporter.resources.limits.memory`          | Memory limit for Redis Exporter.                            | `512Mi`                       |
-| `redisExporter.resources.requests.cpu`           | CPU request for Redis Exporter.                             | `50m`                          |
-| `redisExporter.resources.requests.memory`        | Memory request for Redis Exporter.                          | `256Mi`                       |
-| `redisExporter.persistence.enabled`              | Enable or disable persistence for Redis Exporter.           | `true`                         |
-| `redisExporter.persistence.storageClass`         | Storage class for persistent volume claims.                 | `""`                           |
-| `redisExporter.persistence.mountPath`            | Mount path for persistent storage.                           | `""`                           |
-| `redisExporter.persistence.accessModes`          | Access modes for persistent storage.                         | `ReadWriteOnce`               |
-| `redisExporter.persistence.size`                 | Size of the persistent volume.                               | `2Gi`                          |
+Redis (service `redis-exporter`) is its own chart since 8.5.0: install
+chart **redis-exporter**. `redis_url` above (and
+`forms-flow-offline-worker.replayRedisUrl`) point at it.

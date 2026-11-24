@@ -243,11 +243,6 @@ spec:
             secretKeyRef:
               key: WEBSOCKET_ENCRYPT_KEY
               name: "{{ .Values.formsflow.secret }}"
-        - name: DATA_ANALYSIS_URL
-          valueFrom:
-            configMapKeyRef:
-              key: DATA_ANALYSIS_SERVICE_URL
-              name: "{{ .Values.formsflow.configmap }}"
         - name: KEYCLOAK_ENABLE_CLIENT_AUTH
           valueFrom:
             configMapKeyRef:
@@ -343,6 +338,27 @@ spec:
             configMapKeyRef:
               key: USER_NAME_DISPLAY_CLAIM
               name: "{{ .Values.formsflow.configmap }}"                
+        - name: CAMUNDA_BPM_HISTORY_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              key: CAMUNDA_BPM_HISTORY_LEVEL
+              name: "{{ .Chart.Name }}"
+        # Offline forms (chart forms-flow-ai): accepts the worker's on-behalf tokens.
+        - name: OFFLINE_WORKER_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              key: OFFLINE_WORKER_CLIENT_ID
+              name: "{{ .Values.formsflow.configmap }}"
+        - name: OFFLINE_WORKER_PUBLIC_KEY
+          valueFrom:
+            configMapKeyRef:
+              key: OFFLINE_WORKER_PUBLIC_KEY
+              name: "{{ .Values.formsflow.configmap }}"
+        - name: OFFLINE_REPLAY_REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              key: OFFLINE_REPLAY_REDIS_URL
+              name: "{{ .Values.formsflow.configmap }}"
           {{- if .Values.extraEnvVars }}
           {{- include "common.tplvalues.render" (dict "value" .Values.extraEnvVars "context" $) | nindent 8 }}
           {{- end }}

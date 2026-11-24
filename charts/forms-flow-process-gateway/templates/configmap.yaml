@@ -1,0 +1,20 @@
+{{- $c := .Values.configuration }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "common.names.fullname" . }}
+  namespace: {{ include "common.names.namespace" . | quote }}
+  labels: {{- include "common.labels.standard" ( dict "customLabels" .Values.commonLabels "context" $ ) | nindent 4 }}
+    app.kubernetes.io/component: forms-flow-process-gateway
+  {{- if .Values.commonAnnotations }}
+  annotations: {{- include "common.tplvalues.render" ( dict "value" .Values.commonAnnotations "context" $ ) | nindent 4 }}
+  {{- end }}
+data:
+  PYTHONUNBUFFERED: "1"
+  FASTAPI_ENV: {{ $c.fastapiEnv | quote }}
+  FORMSFLOW_PROCESS_GATEWAY_WORKERS: {{ $c.workers | quote }}
+  FORWARDED_ALLOW_IPS: {{ $c.forwardedAllowIps | quote }}
+  LOG_LEVEL: {{ $c.logLevel | quote }}
+  ENGINE_CONFIG_FILE: {{ $c.engineConfigFile | quote }}
+  GATEWAY_ADAPTERS: {{ $c.adapters | quote }}
+  CAMUNDA_URL_PREFIX: {{ $c.camundaUrlPrefix | quote }}
