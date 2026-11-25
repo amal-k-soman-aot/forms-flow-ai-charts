@@ -81,7 +81,8 @@ forms-flow-objectstore first (helm install waits for their Jobs).
 {{- with .Values.waitForInitJobs.jobs -}}
 {{- $w := $.Values.waitForInitJobs -}}
 - name: wait-for-init-jobs
-  image: {{ include "forms-flow-bridge.images.image" (dict "image" $w.image "context" $) }}
+  {{- /* Not on Docker Hub: global.imageRegistry is not applied. */}}
+  image: {{ include "common.images.image" (dict "imageRoot" $w.image "global" (dict)) }}
   imagePullPolicy: {{ $w.image.pullPolicy }}
   command: ["kubectl"]
   args:

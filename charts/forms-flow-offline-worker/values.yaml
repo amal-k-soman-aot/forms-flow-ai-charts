@@ -59,7 +59,8 @@ api:
 ## The pod waits until these init Jobs are gone (Helm removes each one once it
 ## succeeds; a failed Job stays and the pod keeps waiting). kubectl wait, with
 ## the chart's own ServiceAccount. Empty: no waiting. Keep the image within one
-## minor version of the cluster.
+## minor version of the cluster. The image keeps its own registry
+## (registry.k8s.io): global.imageRegistry does not change it.
 waitForInitJobs:
   jobs:
     - forms-flow-queue-init
