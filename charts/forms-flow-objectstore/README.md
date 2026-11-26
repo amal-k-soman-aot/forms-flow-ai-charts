@@ -21,7 +21,12 @@ so changed store passwords always reach the store. It runs `/setup.sh` from
 the objectstore image (or `init.image`).
 
 The image runs as user minio (uid/gid 1000), so the volume is given to that
-group (`podSecurityContext.fsGroup`).
+user. `podSecurityContext.fsGroup` does this only where the storage driver
+applies it; the EFS CSI driver and NFS do not. So an init container
+(`volumePermissions`, on by default, runs as root) changes the owner of
+whatever in `/data` is not already 1000:1000. Without it MinIO fails on EFS
+with "Unable to initialize backend: file access denied". Set
+`volumePermissions.enabled=false` where root containers are not allowed.
 
 `init.keepDays` must be more than forms-flow-ai's `forms-flow-queue.maxWaitDays` plus `maxHours` (in days); setup.sh checks it. The volume is kept when the release is removed (`helm.sh/resource-policy: keep`).
 

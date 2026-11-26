@@ -117,7 +117,7 @@ init:
     requests: {cpu: 50m, memory: 64Mi}
     limits: {memory: 256Mi}
 
-## Waits for the store before the init Job runs.
+## Waits for the store before the init Job runs; also sets the volume's owner (volumePermissions).
 busybox:
   image:
     registry: docker.io
@@ -177,9 +177,19 @@ serviceAccount:
 ## @param automountServiceAccountToken Mount the ServiceAccount token in the pods
 automountServiceAccountToken: false
 
+## @param volumePermissions.enabled Give /data to MinIO's user from a root init container
+## The image runs as minio (uid/gid 1000) and a new volume is owned by root.
+## fsGroup (below) fixes that only where the storage driver applies it: the
+## EFS CSI driver and NFS do not, and MinIO then fails with "file access
+## denied". This init container (busybox image above) changes the owner of
+## whatever in /data is not already 1000:1000. Turn it off where root
+## containers are not allowed (Pod Security "restricted").
+volumePermissions:
+  enabled: true
+  runAsUser: 1000
+  runAsGroup: 1000
+
 ## @param podSecurityContext.enabled Enable pods' Security Context
-## The image runs as minio (uid/gid 1000); a new volume is owned by root, so it
-## is given to that group or MinIO cannot write /data.
 podSecurityContext:
   enabled: true
   fsGroup: 1000
